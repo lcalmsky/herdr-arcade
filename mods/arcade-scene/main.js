@@ -14,6 +14,9 @@ import {
 
 const LANDING_MS = 220;
 export const RETURN_MS = 8000;
+// The scene seats every session it is given while it is still coming up, so an app start shows the
+// room already settled; only a session that joins once the scene has settled walks in.
+export const SETTLE_MS = 5000;
 const FOCUS_WATCH_MS = 100;
 const COUNTDOWN_MS = 1000;
 const FONT = "Galmuri11";
@@ -110,8 +113,10 @@ export default class ArcadeScene extends View {
     this.spots = {};
     this.drawn = {};
     this.walks = new Map();
-    // The first cast after load is already seated; only sessions appearing after it walk in.
+    // The first cast after load is already seated; only sessions appearing once the scene has
+    // settled walk in.
     this.loaded = false;
+    this.startedAt = this.now();
     this.hovered = null;
     this.drag = null;
     this.pinned = new Map();
@@ -159,6 +164,7 @@ export default class ArcadeScene extends View {
 
   sync(cast, cx) {
     const previous = this.spots;
+    const settling = !this.loaded || this.now() - this.startedAt < SETTLE_MS;
     const spots = assignSpots(cast, previous);
     this.spots = spots;
     const live = new Set(cast.map((entry) => entry.id));
@@ -175,9 +181,9 @@ export default class ArcadeScene extends View {
       const spot = spots[entry.id];
       if (!spot) continue;
       if (!this.drawn[entry.id]) {
-        // The sessions waiting when the scene loads are already there; one that appears after
-        // that walks in through the doorway.
-        if (!this.loaded) {
+        // The sessions already on their way when the scene comes up are seated where they play;
+        // one that appears once the scene has settled walks in through the doorway.
+        if (settling) {
           this.drawn[entry.id] = { x: spot.x, y: spot.y };
           continue;
         }
@@ -197,6 +203,13 @@ export default class ArcadeScene extends View {
         this.pinned.delete(entry.id);
         this.droppedAt.delete(entry.id);
         due = moodChanged ? null : at;
+      }
+      // A launch hands the scene a stale cast before the live scan; while settling, the move to the
+      // live spot is a jump, so the room is already seated when the first live frame is drawn.
+      if (settling) {
+        this.walks.delete(entry.id);
+        this.drawn[entry.id] = { x: spot.x, y: spot.y };
+        continue;
       }
       const advanced = this.advanceWalk(entry.id, cx);
       const goal = advanced ? advanced.walk.path[advanced.walk.path.length - 1] : this.drawn[entry.id];

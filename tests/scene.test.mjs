@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import ArcadeScene, { RETURN_MS, charOrderOf, charKey, chipKey } from "../mods/arcade-scene/main.js";
+import ArcadeScene, { RETURN_MS, SETTLE_MS, charOrderOf, charKey, chipKey } from "../mods/arcade-scene/main.js";
 import { MOOD_MOTION, dragLayers, motionLayers, walkLayers } from "../mods/arcade-scene/motion.js";
 import {
   ART, BENCH_SPOTS, BUBBLE, BUBBLE_LIMIT, CABINETS, CAB_BASE_Y, CHIP, CHIP_GROUPS, CHIP_TONES, DESIGN,
@@ -45,7 +45,9 @@ function scene() {
   view.now = () => clock;
   view.init(null, cx);
   const advance = (ms) => { clock += ms; };
+  // Settling also carries the clock past the launch window, where moves are jumps, not walks.
   const settle = () => {
+    clock = Math.max(clock, SETTLE_MS);
     for (let guard = 0; guard < 1000; guard += 1) {
       if (!queue.length) return;
       queue.sort((a, b) => a.at - b.at);
@@ -66,9 +68,19 @@ test("the sessions already there when the scene loads stand in their places, wit
   assert.deepEqual(view.drawn.v, feet(BENCH_SPOTS[0]));
 });
 
-test("a session that appears after the first cast walks in from the doorway to its machine", () => {
-  const { view, cx, settle } = scene();
+test("a session that joins while the scene is still coming up stands in its place without walking", () => {
+  const { view, cx, advance } = scene();
   view.sync(cast([["a", "working"]]), cx);
+  advance(SETTLE_MS - 1000);
+  view.sync(cast([["a", "working"], ["b", "needs"]]), cx);
+  assert.equal(view.walks.size, 0, "a late arrival inside the settle window starts no walk");
+  assert.deepEqual(view.drawn.b, feet([CABINETS[1].x, FOOT_Y.needs]), "it stands at its machine");
+});
+
+test("a session that appears once the scene has settled walks in from the doorway to its machine", () => {
+  const { view, cx, advance, settle } = scene();
+  view.sync(cast([["a", "working"]]), cx);
+  advance(SETTLE_MS);
   view.sync(cast([["a", "working"], ["b", "needs"]]), cx);
   const walk = view.walks.get("b");
   assert.ok(walk, "the new session walks");
@@ -80,8 +92,9 @@ test("a session that appears after the first cast walks in from the doorway to i
 });
 
 test("a session walks in solid and its machine shows its play screen", () => {
-  const { view, cx, settle } = scene();
+  const { view, cx, advance, settle } = scene();
   view.sync(cast([["a", "working"]]), cx);
+  advance(SETTLE_MS);
   view.sync(cast([["a", "working"], ["b", "working"]]), cx);
   assert.deepEqual(view.drawn.b, { x: ENTRY.x, y: WALK_Y }, "the first frame shows it on the walk");
   assert.equal(characterOpacity(true, false), 1, "a shown character never waits on a fade");
@@ -504,6 +517,7 @@ test("walkPosition interpolates a leg linearly and holds at its ends", () => {
 test("a walk reaches its place on the clock alone, even when no timer ever fires", () => {
   const { view, cx, advance, queue } = scene();
   view.sync(cast([["a", "working"]]), cx);
+  advance(SETTLE_MS);
   view.sync(cast([["a", "working"], ["b", "needs"]]), cx);
   const walk = view.walks.get("b");
   queue.splice(0);
@@ -522,6 +536,7 @@ test("a walk reaches its place on the clock alone, even when no timer ever fires
 test("a render between timers draws the leg the clock has reached", () => {
   const { view, cx, advance, queue } = scene();
   view.sync(cast([["a", "working"]]), cx);
+  advance(SETTLE_MS);
   view.sync(cast([["a", "working"], ["b", "working"]]), cx);
   const walk = view.walks.get("b");
   queue.splice(0);
@@ -1071,4 +1086,14 @@ test("the reading position is on the bench at the right of the room", () => {
   for (const [x, y] of BENCH_SPOTS) assert.ok(x >= 1200 && x <= 1515 && y <= 355, `bench spot ${x},${y}`);
   for (const [x, y] of FLOOR_SPOTS) assert.ok(y > 355, "the floor overflow is on the floor");
   assert.deepEqual(SPECTATOR_SPOTS[0], [1250, 810]);
+});
+
+test("a stale cast at launch followed by the live one seats everyone at the live spots without walking", () => {
+  const { view, cx, advance } = scene();
+  view.sync(cast([["a", "working"], ["b", "working"]]), cx);
+  advance(2000);
+  view.sync(cast([["a", "needs"], ["b", "done"]]), cx);
+  assert.equal(view.walks.size, 0, "no one walks while the scene is settling");
+  assert.deepEqual(view.drawn.a, { x: view.spots.a.x, y: view.spots.a.y });
+  assert.deepEqual(view.drawn.b, { x: view.spots.b.x, y: view.spots.b.y });
 });

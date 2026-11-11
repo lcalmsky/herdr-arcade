@@ -1,0 +1,161 @@
+{
+  "sessions": [
+    {
+      "sid": "demo-abc-1401",
+      "key": "ABC-1401",
+      "name": "Refund rounding",
+      "repo": "api",
+      "status": "waiting",
+      "agoMs": 45000,
+      "agent": "blocked",
+      "lastAnswer": "ABC-1401 prod rollout — shall I proceed?"
+    },
+    {
+      "sid": "demo-web-2210",
+      "key": "WEB-2210",
+      "name": "Checkout retry",
+      "repo": "web",
+      "status": "busy",
+      "agoMs": 90000,
+      "meaningfulAgoMs": 9000,
+      "agent": "working",
+      "lastSentence": "WEB-2210 retrying checkout payments in the sandbox."
+    },
+    {
+      "sid": "demo-abc-1402",
+      "key": "ABC-1402",
+      "name": "Ledger export",
+      "repo": "api",
+      "split": "right",
+      "status": "busy",
+      "agoMs": 360000,
+      "meaningfulAgoMs": 8000,
+      "agent": "working",
+      "lastSentence": "ABC-1402 rebuilding the ledger snapshot.",
+      "deadhd": {
+        "counts": { "done": 4, "now": 1, "blocked": 0, "left": 2 },
+        "total": 7,
+        "items": [
+          { "state": "done", "label": "Check schema", "sub": null },
+          { "state": "done", "label": "Backfill rows", "sub": null },
+          { "state": "done", "label": "Compare totals", "sub": null },
+          { "state": "done", "label": "Run export", "sub": null },
+          { "state": "now", "label": "Rebuild snapshot", "sub": "Running" },
+          { "state": "left", "label": "Deploy", "sub": null },
+          { "state": "left", "label": "Check metrics", "sub": null }
+        ],
+        "nowLabel": "Rebuild snapshot",
+        "states": ["done", "done", "done", "done", "now", "left", "left"],
+        "off": false
+      }
+    },
+    {
+      "sid": "demo-abc-1403",
+      "key": "ABC-1403",
+      "name": "VAT totals",
+      "repo": "api",
+      "status": "busy",
+      "agoMs": 240000,
+      "meaningfulAgoMs": 12000,
+      "agent": "working",
+      "lastSentence": "ABC-1403 writing the VAT regression test."
+    },
+    {
+      "sid": "demo-web-2211",
+      "key": "WEB-2211",
+      "name": "Search ranking",
+      "repo": "web",
+      "status": "busy",
+      "agoMs": 720000,
+      "meaningfulAgoMs": 6000,
+      "agent": "working",
+      "background": { "shells": 2, "agents": 0, "monitors": 0, "total": 2 }
+    },
+    {
+      "sid": "demo-abc-1451",
+      "key": "ABC-1451",
+      "name": "Docs index",
+      "repo": "docs",
+      "status": "busy",
+      "agoMs": 180000,
+      "meaningfulAgoMs": 9000,
+      "agent": "working",
+      "lastSentence": "ABC-1451 rebuilding the docs index."
+    },
+    {
+      "sid": "demo-web-2231",
+      "key": "WEB-2231",
+      "name": "Terraform plan",
+      "repo": "infra",
+      "status": "busy",
+      "agoMs": 420000,
+      "meaningfulAgoMs": 7000,
+      "agent": "working",
+      "lastSentence": "WEB-2231 planning the staging network."
+    },
+    {
+      "sid": "demo-abc-1470",
+      "key": "ABC-1470",
+      "name": "Push notifications",
+      "repo": "mobile",
+      "status": "busy",
+      "agoMs": 300000,
+      "meaningfulAgoMs": 5000,
+      "agent": "working",
+      "lastSentence": "ABC-1470 wiring the push retry path."
+    },
+    {
+      "sid": "demo-abc-1471",
+      "key": "ABC-1471",
+      "name": "Offline cache",
+      "repo": "mobile",
+      "status": "busy",
+      "agoMs": 150000,
+      "meaningfulAgoMs": 11000,
+      "agent": "working",
+      "lastSentence": "ABC-1471 evicting stale offline entries."
+    },
+    {
+      "sid": "demo-abc-1450",
+      "key": "ABC-1450",
+      "name": "Release notes",
+      "repo": "docs",
+      "status": "busy",
+      "agoMs": 1500000,
+      "meaningfulAgoMs": 9000,
+      "agent": "working",
+      "lastSentence": "ABC-1450 drafting release notes from the changelog."
+    },
+    {
+      "sid": "demo-web-2230",
+      "key": "WEB-2230",
+      "name": "Failover drill",
+      "repo": "infra",
+      "status": "busy",
+      "agoMs": 2400000,
+      "agent": "working",
+      "lastSentence": "WEB-2230 waiting on the failover dry run."
+    },
+    {
+      "sid": "demo-web-2212",
+      "key": "WEB-2212",
+      "name": "CSP headers",
+      "repo": "web",
+      "status": "idle",
+      "agoMs": 360000,
+      "agent": "done",
+      "lastAnswer": "WEB-2212 CSP headers applied. PR #418 is up."
+    },
+    {
+      "sid": "demo-abc-1472",
+      "key": "ABC-1472",
+      "name": "Crash triage",
+      "repo": "mobile",
+      "status": "idle",
+      "agoMs": 2400000,
+      "agent": "idle",
+      "fixed": true,
+      "lastAnswer": "ABC-1472 crash triage notes are in the doc."
+    }
+  ]
+}

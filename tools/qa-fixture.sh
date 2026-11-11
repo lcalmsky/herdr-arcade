@@ -1,18 +1,30 @@
 #!/bin/sh
-# Swaps a Herdr home's cards scan for a fixed cast of nine sessions, so a QA shot shows every
-# group without waiting on real work. The original is kept as scan.sh.orig; --restore puts it
-# back. The person's own home (~/.config/herdr-app) is refused.
+# Swaps a Herdr home's cards scan for the demo cast in tools/qa-sessions.json, so a QA shot shows
+# every group without waiting on real work. --roster points the fixture at the live terminal
+# addresses the stage placed; without it the sessions still scan, just with no terminals behind
+# them. The original is kept as scan.sh.orig; --restore puts it back. The person's own home
+# (~/.config/herdr-app) is refused.
 set -eu
 
 usage() {
-  echo "usage: $0 <HERDR_APP_HOME> [--restore]" >&2
+  echo "usage: $0 <HERDR_APP_HOME> [--restore | --roster <path>]" >&2
   exit 1
 }
 
 [ $# -ge 1 ] && [ -n "${1:-}" ] || usage
 HOME_DIR=$1
 MODE=${2:-}
-if [ -n "$MODE" ] && [ "$MODE" != "--restore" ]; then usage; fi
+ROSTER=
+if [ "$MODE" = "--roster" ]; then
+  [ $# -eq 3 ] && [ -n "${3:-}" ] || usage
+  ROSTER=$3
+elif [ -n "$MODE" ] && [ "$MODE" != "--restore" ]; then
+  usage
+fi
+
+HERE=$(cd "$(dirname "$0")" && pwd -P)
+SESSIONS="$HERE/qa-sessions.json"
+[ -f "$SESSIONS" ] || { echo "missing $SESSIONS" >&2; exit 1; }
 
 real=$(cd "$HOME_DIR" 2>/dev/null && pwd -P) || { echo "no such home: $HOME_DIR" >&2; exit 1; }
 personal=$(cd "$HOME/.config/herdr-app" 2>/dev/null && pwd -P) || personal="$HOME/.config/herdr-app"
@@ -26,10 +38,13 @@ if [ "$personal_match" = 1 ] || [ "$real" = "$personal" ]; then
 fi
 
 SCAN="$real/mods/arcade-cards/scan.sh"
+SESSIONS_COPY="$real/mods/arcade-cards/qa-sessions.json"
+ROSTER_COPY="$real/mods/arcade-cards/qa-roster.json"
 if [ "$MODE" = "--restore" ]; then
   [ -f "$SCAN.orig" ] || { echo "no scan.sh.orig in $real" >&2; exit 1; }
   mv "$SCAN.orig" "$SCAN"
   chmod +x "$SCAN"
+  rm -f "$SESSIONS_COPY" "$ROSTER_COPY"
   echo "restored $SCAN"
   exit 0
 fi
@@ -43,99 +58,101 @@ else
   cp -p "$SCAN" "$SCAN.orig"
 fi
 
+if [ -n "$ROSTER" ]; then
+  [ -f "$ROSTER" ] || { echo "no roster: $ROSTER" >&2; exit 1; }
+  cp "$ROSTER" "$ROSTER_COPY"
+else
+  rm -f "$ROSTER_COPY"
+fi
+cp "$SESSIONS" "$SESSIONS_COPY"
+
 cat > "$SCAN" <<'FIXTURE'
 #!/bin/sh
-# qa-fixture scan: nine fixed sessions in the real scan.sh's line format. Times are relative
-# to the run, so the groups stay put however long the QA waits.
-exec python3 - <<'PY'
+# qa-fixture scan: the demo cast from qa-sessions.json beside this script, with terminal ids from
+# qa-roster.json when the stage placed them. Times are relative to the run, so the groups stay put
+# however long the QA waits.
+exec python3 - "$(dirname "$0")" <<'PY'
 import json
+import os
+import sys
 import time
+
+here = sys.argv[1]
+
+
+def read(name):
+    try:
+        with open(os.path.join(here, name), encoding="utf-8") as handle:
+            return json.load(handle)
+    except Exception:
+        return None
+
 
 now = int(time.time() * 1000)
 minute = 60 * 1000
+demo = os.path.realpath("/tmp/arcade-demo")
+spec = read("qa-sessions.json") or {}
+roster = read("qa-roster.json") or {}
+placed = roster.get("sessions") or {}
+fixed_at = roster.get("fixedAt")
+sessions = spec.get("sessions") or []
 
 
-def session(sid, key, name, status, ago, **extra):
-    started = now - 3 * 60 * minute
-    status_at = now - ago
-    row = {
+def slug(text):
+    return "-".join(str(text).lower().split())
+
+
+def row_of(item, index, at):
+    key = item["key"]
+    name = item["name"]
+    folder = os.path.join(demo, item["repo"], "%s-%s" % (key, slug(name)))
+    spot = placed.get(item["sid"]) or {}
+    return {
         "t": "s",
-        "pid": 4100 + len(sid),
-        "sessionId": sid,
-        "cwd": "/Users/dev/git-repo/api-cserver-%s" % key,
+        "pid": 4200 + index,
+        "sessionId": item["sid"],
+        "cwd": spot.get("cwd") or folder,
         "name": name,
         "kind": "interactive",
         "jobId": None,
         "parkedJobId": None,
-        "status": status,
+        "status": item["status"],
         "waitingFor": None,
-        "startedAt": started,
-        "updatedAt": status_at,
-        "statusUpdatedAt": status_at,
+        "startedAt": now - 3 * 60 * minute,
+        "updatedAt": at,
+        "statusUpdatedAt": at,
         "location": name,
         "identity": {"firstPrompt": "%s %s — start the work." % (key, name), "handoff": None},
         "customTitle": name,
-        "agentName": "claude-%s" % key.lower(),
+        "agentName": "claude-%s" % key.lower().replace("-", ""),
         "lastPrompt": "%s %s — start the work." % (key, name),
-        "lastAnswer": "%s — wrapping up, will report." % name,
-        "lastSentence": "%s — checking the flow." % name,
+        "lastAnswer": item.get("lastAnswer"),
+        "lastSentence": item.get("lastSentence"),
         "currentAction": None,
         "lastToolName": "Bash",
-        "lastToolAt": status_at,
-        "lastMeaningfulAt": status_at,
+        "lastToolAt": at,
+        "lastMeaningfulAt": now - int(item.get("meaningfulAgoMs", item.get("agoMs", 0))),
         "pr": None,
-        "background": {"shells": 0, "agents": 0, "monitors": 0, "total": 0},
+        "background": item.get("background") or {"shells": 0, "agents": 0, "monitors": 0, "total": 0},
         "completed": [],
-        "deadhd": None,
+        "deadhd": item.get("deadhd"),
         "pages": [],
-        "where": {"kind": "herdr-app", "paneId": "pane-%s" % key.lower(), "socket": None, "handle": None, "terminalId": "term-%s" % key.lower()},
+        "where": {"kind": "herdr-app", "paneId": None, "socket": None, "handle": None,
+                  "terminalId": spot.get("terminalId")},
         "agent": "claude",
     }
-    row.update(extra)
-    return row
 
 
 rows = []
-rows.append(session("qa-needs-1", "ABC-0001", "Deploy approval", "waiting", 42 * 1000, lastAnswer="ABC-0001 prod rollout — shall I proceed?"))
-rows.append(session("qa-needs-2", "ABC-0002", "Refund policy", "waiting", 2 * minute, lastAnswer="ABC-0002 OK to delete the test fixture?"))
-rows.append(session("qa-stall", "ABC-0003", "로그 파서", "busy", 20 * minute,
-                    lastMeaningfulAt=now - 20 * minute, lastSentence="ABC-0003 출력이 20분째 없음."))
-rows.append(session("qa-work-1", "ABC-0004", "Search ranking", "busy", 6 * minute,
-                    lastMeaningfulAt=now - 10 * 1000, lastSentence="ABC-0004 index rebuild 3/7.",
-                    deadhd={
-                        "counts": {"done": 3, "now": 1, "blocked": 0, "left": 3},
-                        "total": 7,
-                        "items": [
-                            {"state": "done", "label": "Check schema", "sub": None},
-                            {"state": "done", "label": "Build index", "sub": None},
-                            {"state": "done", "label": "Compare ranking", "sub": None},
-                            {"state": "now", "label": "Tune weights", "sub": "Running"},
-                            {"state": "left", "label": "Deploy", "sub": None},
-                            {"state": "left", "label": "Check metrics", "sub": None},
-                            {"state": "left", "label": "Write docs", "sub": None},
-                        ],
-                        "nowLabel": "Tune weights",
-                        "states": ["done", "done", "done", "now", "left", "left", "left"],
-                        "dataAt": now - 30 * 1000,
-                        "off": False,
-                    }))
-rows.append(session("qa-work-2", "ABC-0005", "Onboarding form", "busy", 12 * minute,
-                    lastMeaningfulAt=now - 20 * 1000, lastSentence="ABC-0005 writing component tests.",
-                    background={"shells": 2, "agents": 0, "monitors": 0, "total": 2}))
-rows.append(session("qa-work-3", "ABC-0006", "Cache invalidation", "busy", 3 * minute,
-                    lastMeaningfulAt=now - 5 * 1000, lastSentence="ABC-0006 rebuilding cache keys."))
-rows.append(session("qa-done-1", "ABC-0007", "Alert cleanup", "idle", 5 * minute,
-                    lastAnswer="ABC-0007 alert rules cleaned up. PR #412 is up."))
-rows.append(session("qa-done-2", "ABC-0008", "Onboarding docs", "idle", 32 * minute,
-                    lastAnswer="ABC-0008 onboarding docs are in order."))
-rows.append(session("qa-viewed", "ABC-0009", "릴리스 노트", "idle", 3 * 60 * minute,
-                    lastAnswer="ABC-0009 릴리스 노트를 올렸어."))
+for index, item in enumerate(sessions):
+    at = fixed_at if item.get("fixed") and fixed_at else now - int(item.get("agoMs", 0))
+    rows.append(row_of(item, index, at))
 
 for row in rows:
     print(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
 print(json.dumps({
     "t": "meta",
-    "roots": 2,
+    "roots": len({item["repo"] for item in sessions}),
     "updatedAt": now,
     "error": None,
     "pages": [],

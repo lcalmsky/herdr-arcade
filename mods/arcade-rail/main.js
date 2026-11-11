@@ -43,6 +43,21 @@ function charFor(key) {
 }
 
 // Where a terminal's program runs now; the recorded cwd is only where the terminal opened.
+const REPOS_KEY = "arcade-rail.repos";
+
+function loadRepos() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(REPOS_KEY) ?? "{}");
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRepos(repos) {
+  try { localStorage.setItem(REPOS_KEY, JSON.stringify(repos)); } catch {}
+}
+
 export function cwdOf(t) {
   return t?.foreground?.cwd || t?.cwd || null;
 }
@@ -187,7 +202,8 @@ export default class ArcadeRail extends View {
     this.at = 0;
     this.width = 0;
     this.turns = {};
-    this.repos = {};
+    // The last answers git gave are kept, so a launch draws its repository headings at once.
+    this.repos = loadRepos();
     this.reading = false;
     cx.timer.every(REPO_MS, (cx) => this.readRepos(cx));
     cx.timer.every(30000, (cx) => cx.notify());
@@ -216,7 +232,7 @@ export default class ArcadeRail extends View {
     const folders = [...new Set(terminals().map(cwdOf).filter(Boolean))];
     cx.spawn(async (later) => {
       const next = {};
-      for (const cwd of folders) {
+      await Promise.all(folders.map(async (cwd) => {
         try {
           const r = await exec("git", ["-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir", "--show-toplevel"]);
           const [common, top] = String(r.stdout ?? "").trim().split("\n");
@@ -224,12 +240,21 @@ export default class ArcadeRail extends View {
         } catch {
           next[cwd] = null;
         }
-      }
+      }));
       this.repos = next;
+      saveRepos(next);
       this.reading = false;
       this.groupSpaces();
       later.notify();
     });
+  }
+
+  // A cwd the rail has not asked git about yet — a terminal that showed up after the last read —
+  // is read now, instead of leaving its spaces ungrouped until the next REPO_MS pass.
+  readMissing(cx) {
+    if (this.reading) return;
+    if (!terminals().some((t) => { const cwd = cwdOf(t); return cwd && !(cwd in this.repos); })) return;
+    this.readRepos(cx);
   }
 
   // Each space's first terminal cwd and the repository git found there; repo is undefined
@@ -369,8 +394,9 @@ export default class ArcadeRail extends View {
       .filter(Boolean).join(" · ");
   }
 
-  render() {
+  render(cx) {
     if (this.role === "buttons") return this.buttons();
+    this.readMissing(cx);
     if (this.board) return this.boardView();
     const now = Date.now();
     const list = agents();

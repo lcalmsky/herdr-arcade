@@ -293,6 +293,28 @@ test("parsePorcelain reads every line kind into accounts, models, labels and the
   assert.equal(p.codex.accounts[0].usage, null);
 });
 
+test("the stage's CREDIT fake answers porcelain the real parser reads", () => {
+  const fake = fileURLToPath(new URL("../tools/qa-cca.sh", import.meta.url));
+  for (const args of [["--porcelain"], ["--porcelain", "4242"]]) {
+    const p = parsePorcelain(execFileSync("sh", [fake, ...args], { encoding: "utf8" }));
+    assert.equal(p.current, "work");
+    assert.equal(p.globalDefault, "work");
+    assert.deepEqual(p.accounts.map((a) => a.name), ["work", "personal", "Codex"]);
+    assert.deepEqual(p.accounts.map((a) => a.plan), ["Max Ultra", "Max", "Pro"]);
+    assert.equal(p.accounts[0].usage.five.used, 21);
+    assert.equal(p.accounts[0].usage.seven.used, 79);
+    assert.equal(p.accounts[0].usage.fable.used, 5);
+    assert.deepEqual({ five: p.accounts[1].usage.five.used, seven: p.accounts[1].usage.seven.used }, { five: 12, seven: 34 });
+    assert.equal(p.accounts[1].usage.fable, null);
+    assert.equal(typeof p.accounts[1].usage.seven.reset, "number");
+    assert.equal(p.accounts[2].usage.five.used, 0);
+    assert.equal(p.accounts[2].usage.seven.used, 11);
+    assert.deepEqual(cardWindows(p.accounts[0]).map(([label]) => label), ["7d", "Fable"]);
+    assert.deepEqual(cardWindows(p.accounts[1]).map(([label]) => label), ["5h", "7d"]);
+  }
+  assert.throws(() => execFileSync("sh", [fake, "use", "work"], { stdio: "ignore" }), (error) => error.status === 2);
+});
+
 test("parsePorcelain always offers the system Codex login and ignores broken lines", () => {
   const p = parsePorcelain("X\tbad name\tx\nY\tbad name\nV\t\nQ\t");
   assert.deepEqual(p.codex, { active: "default", accounts: [{ name: "default", email: "", usage: null, plan: null, label: null }] });
