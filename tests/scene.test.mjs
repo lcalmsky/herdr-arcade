@@ -339,15 +339,14 @@ test("the stage fits the focus box, filling the width or centring the design wit
   assert.ok(huge.left > 0, "its design is narrow enough to leave FRAME_BG on both sides");
 });
 
-test("the marquee frame fills the block's width, grows with the row and starts at the cabinet tops", () => {
-  assert.deepEqual(MARQUEE, { x0: 0, y: 332, topFraction: 0 });
+test("the marquee frame fits its height, so a wider block shows more cabinets, and starts at the cabinet tops", () => {
+  assert.deepEqual(MARQUEE, { x0: 0, y: 332, height: 295, topFraction: 0 });
   for (const ratio of [4, 5.5, 7]) {
     const H = 300;
     const W = H * ratio;
     const cover = coverScale(W, H, "marquee");
-    assert.equal(cover.scale, W / (FOCUS.x1 - FOCUS.x0), `${ratio}:1 fits the design across`);
+    assert.equal(cover.scale, H / MARQUEE.height, `${ratio}:1 keeps the cabinet-to-shoulder band in view`);
     assert.ok(Math.abs(cover.left + MARQUEE.x0 * cover.scale) < 1e-9, "the art's left edge lands on the block's left edge");
-    assert.ok(cover.left <= 1e-9 && cover.left + cover.width >= W - 1e-9, `${ratio}:1 has no side band`);
     assert.ok(Math.abs(cover.top + MARQUEE.y * cover.scale - MARQUEE.topFraction * H) < 1e-9,
       "the cabinet tops sit on the block's top edge");
   }

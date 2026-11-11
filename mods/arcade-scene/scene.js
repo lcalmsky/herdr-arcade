@@ -16,7 +16,8 @@ export const WALK_IN_MARGIN = 80;
 // The marquee frame starts at the cabinets' upper edge: the design is fitted across x 80..1536,
 // so no side band shows, and MARQUEE.y is the design y that lands on the block's top.
 // MARQUEE.x0 starts the view at the art's left edge so the cabinet row sits nearer the middle.
-export const MARQUEE = { x0: 0, y: 332, topFraction: 0 };
+// The marquee shows the design band from y to y + height: cabinet tops down to the players' shoulders.
+export const MARQUEE = { x0: 0, y: 332, height: 295, topFraction: 0 };
 
 // One cabinet per session, left to right: the first stands at CAB_X0, then one every CAB_STEP,
 // and the art cycles through the six cabinets in this order.
@@ -402,9 +403,9 @@ export function coverScale(W, H, frame = null, stageWidth = DESIGN.width) {
   const focusWidth = FOCUS.x1 - FOCUS.x0;
   const focusHeight = FOCUS.bottom - FOCUS.top;
   if (frame === "marquee") {
-    // A marquee is far wider than it is tall. A width fit fills the block and shows the cabinet
-    // tops without the side bands a focus-box fit would leave.
-    const scale = Math.max(1e-4, W / focusWidth);
+    // The row grows with the sessions and scrolls, so the marquee fits its height: a wider block
+    // shows more cabinets instead of bigger ones that crop the players.
+    const scale = Math.max(1e-4, H / MARQUEE.height);
     return {
       scale, width: stageWidth * scale, height: DESIGN.height * scale,
       left: -MARQUEE.x0 * scale,

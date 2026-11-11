@@ -560,7 +560,8 @@ export default class ArcadeScene extends View {
     const sorted = scenery.slice().sort((a, b) => a.depth - b.depth || a.order - b.order).map((item) => item.element);
     // Every other tile is the mirrored art, so the seam where a tile ends matches the one it meets.
     const tiles = [];
-    for (let index = 0; index < tilesFor(stageWidth); index += 1) {
+    // The art also fills a block wider than the row, so a short row never ends in a bare edge.
+    for (let index = 0; index < tilesFor(Math.max(stageWidth, this.offset + this.viewportWidth)); index += 1) {
       const source = index % 2 ? "background_mirror" : "background";
       tiles.push(art(source).absolute().left(index * DESIGN.width * s).top(0)
         .w(DESIGN.width * s).h(DESIGN.height * s));
