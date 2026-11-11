@@ -1,0 +1,147 @@
+{
+ "raw_dir": "raw_keyed",
+ "output_dir": "assets",
+ "density": 2,
+ "background": {
+  "file": "background.png",
+  "size": [
+   768,
+   512
+  ]
+ },
+ "sheets": [
+  {
+   "file": "cabinets.png",
+   "grid": [
+    2,
+    3
+   ],
+   "category": "cabinet",
+   "target_height": 150,
+   "names": [
+    "cab_magenta",
+    "cab_cyan",
+    "cab_purple",
+    "cab_orange",
+    "cab_yellow",
+    "cab_green"
+   ]
+  },
+  {
+   "file": "screens.png",
+   "grid": [
+    2,
+    3
+   ],
+   "category": "screen",
+   "anchor": "center",
+   "target_height": 40,
+   "names": [
+    "scr_play",
+    "scr_continue",
+    "scr_pause",
+    "scr_highscore",
+    "scr_demo",
+    "scr_gameover"
+   ]
+  },
+  {
+   "file": "characters.png",
+   "grid": [
+    4,
+    6
+   ],
+   "category": "char",
+   "target_height": {
+    "kid_back": 92,
+    "robot_back": 92,
+    "cat_back": 92,
+    "oldman_back": 92,
+    "frog_back": 92,
+    "punk_back": 92,
+    "kid_alert": 92,
+    "robot_alert": 92,
+    "cat_alert": 92,
+    "oldman_alert": 92,
+    "frog_alert": 92,
+    "punk_alert": 92,
+    "kid_cheer": 92,
+    "robot_cheer": 92,
+    "cat_cheer": 92,
+    "oldman_cheer": 92,
+    "frog_cheer": 92,
+    "punk_cheer": 92,
+    "kid_sleep": 52,
+    "robot_sleep": 52,
+    "cat_sleep": 52,
+    "oldman_sleep": 52,
+    "frog_sleep": 52,
+    "punk_sleep": 52
+   },
+   "names": [
+    "kid_back",
+    "robot_back",
+    "cat_back",
+    "oldman_back",
+    "frog_back",
+    "punk_back",
+    "kid_alert",
+    "robot_alert",
+    "cat_alert",
+    "oldman_alert",
+    "frog_alert",
+    "punk_alert",
+    "kid_cheer",
+    "robot_cheer",
+    "cat_cheer",
+    "oldman_cheer",
+    "frog_cheer",
+    "punk_cheer",
+    "kid_sleep",
+    "robot_sleep",
+    "cat_sleep",
+    "oldman_sleep",
+    "frog_sleep",
+    "punk_sleep"
+   ]
+  },
+  {
+   "file": "effects.png",
+   "grid": [
+    2,
+    3
+   ],
+   "category": "effect",
+   "anchor": "center",
+   "target_height": {
+    "exclaim": 28,
+    "zzz": 24,
+    "dots": 24,
+    "sparkle": 22,
+    "bubble": 40,
+    "coin": 20
+   },
+   "names": [
+    "exclaim",
+    "zzz",
+    "dots",
+    "sparkle",
+    "bubble",
+    "coin"
+   ]
+  }
+ ],
+ "shadow": {
+  "size": [
+   44,
+   12
+  ],
+  "opacity": 0.35
+ },
+ "tuning": {
+  "key_lo": 60,
+  "key_hi": 150,
+  "min_area": 40,
+  "diff_thresh": 40
+ }
+}

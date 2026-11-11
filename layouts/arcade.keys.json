@@ -1,0 +1,10 @@
+{
+  "ctrl-alt-p": "arcade-cards.toggle",
+  "ctrl-shift-a": "mod.open:arcade-accounts",
+  "cmd-=": "arcade-cards.font_in",
+  "cmd-+": "arcade-cards.font_in",
+  "cmd--": "arcade-cards.font_out",
+  "cmd-0": "arcade-cards.font_reset",
+  "cmd-[": "arcade-cards.back",
+  "cmd-]": "arcade-cards.forward"
+}

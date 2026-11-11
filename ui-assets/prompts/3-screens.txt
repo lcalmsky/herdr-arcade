@@ -1,0 +1,10 @@
+Generate an image (landscape 3:2, 1536x1024): six arcade game SCREEN images in a 2 rows x 3 columns grid. Each one is only the glowing screen content (no cabinet, no bezel), a landscape 4:3 rectangle, all six exactly the same size.
+Same 16-bit pixel art style and palette as the arcade scene in the attached image (the right part of the screen): crisp pixel edges, bold dark pixel outlines, limited palette, light dithering, deep indigo and violet with neon magenta, cyan and warm yellow light. All designs are ORIGINAL and must not resemble any existing video game, character, mascot or brand.
+1. bright gameplay: tiny spaceships and lasers on a starfield
+2. big magenta "CONTINUE?" with a large number 9 under it
+3. dim grey screen with "PAUSE" and two pause bars
+4. gold "HIGH SCORE!" with sparkles and a small trophy
+5. dark attract-mode demo screen, faint shapes
+6. dark red "GAME OVER"
+Text only as written above, in chunky pixel letters.
+Background: one flat solid #FF00FF magenta color, perfectly uniform, no gradient, no texture, no floor, no ground shadow. Never use pink or magenta inside any object. Each object sits alone in the center of its grid cell with wide empty margins; nothing touches the cell edges or other objects. Do not draw grid lines.

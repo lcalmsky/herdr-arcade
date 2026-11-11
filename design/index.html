@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>herdr-arcade 시안</title>
+<meta name="description" content="herdr-arcade 레이아웃 시안: 세션은 플레이어 슬롯, 저장소는 하이스코어 표, 계정 사용량은 크레딧으로 보이는 오락실 화면.">
+<link rel="stylesheet" href="./arcade.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="rail" aria-label="저장소와 공간">
+    <div class="mark"><b>HERDR ARCADE</b><span>오늘의 하이스코어</span></div>
+    <nav class="board">
+      <h2>순위, 플레이어, 공간</h2>
+      <section class="game">
+        <h3>api</h3>
+        <button class="rank" type="button"><span class="n">01</span><span class="faces"><img class="face" src="standin/p_oldman.png" alt=""></span><span class="who"><em>main</em><span>기본 체크아웃</span></span></button>
+        <button class="rank" type="button" aria-current="true"><span class="n">02</span><span class="faces"><img class="face" src="standin/p_redkid.png" alt=""></span><span class="who"><em>ABC-1520</em><span>배포 승인</span></span></button>
+        <button class="rank" type="button"><span class="n">03</span><span class="faces"><img class="face" src="standin/p_robot.png" alt=""></span><span class="who"><em>ABC-1533</em><span>로그 파서</span></span></button>
+      </section>
+      <section class="game">
+        <h3>search</h3>
+        <button class="rank" type="button"><span class="n">01</span><span class="faces"><img class="face" src="standin/p_brownkid.png" alt=""></span><span class="who"><em>ABC-1498</em><span>검색 랭킹 개선</span></span></button>
+        <button class="rank" type="button"><span class="n">02</span><span class="faces"><img class="face" src="standin/p_oldman.png" alt=""></span><span class="who"><em>ABC-1477</em><span>캐시 무효화</span></span></button>
+      </section>
+      <section class="game">
+        <h3>payments</h3>
+        <button class="rank" type="button"><span class="n">01</span><span class="faces"><img class="face" src="standin/p_frog.png" alt=""></span><span class="who"><em>PAY-212</em><span>환불 정책 수정</span></span></button>
+      </section>
+      <section class="game">
+        <h3>web-console</h3>
+        <button class="rank" type="button"><span class="n">01</span><span class="faces"><img class="face" src="standin/p_catgirl.png" alt=""><img class="face" src="standin/p_pink.png" alt=""></span><span class="who"><em>WEB-88</em><span>온보딩 폼</span></span></button>
+      </section>
+    </nav>
+    <section class="credit" aria-label="계정 사용량">
+      <header><b>CREDIT</b><kbd>ctrl shift A</kbd></header>
+      <div class="acct"><span>work</span><span><span class="pips hot"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span><span class="pips week"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="v">78%</span></div>
+      <div class="acct"><span>personal</span><span><span class="pips"><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="pips week"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="v">24%</span></div>
+      <div class="acct"><span>Codex</span><span><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="pips week"><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="v">41%</span></div>
+    </section>
+  </aside>
+
+  <main class="main">
+    <header class="head">
+      <div role="tablist" aria-label="탭" style="display:contents">
+        <button class="stage" role="tab" aria-selected="true" type="button"><b>1-1</b>오전 배포</button>
+        <button class="stage" role="tab" aria-selected="false" type="button"><b>1-2</b>리팩터</button>
+        <button class="stage" role="tab" aria-selected="false" type="button"><b>1-3</b>야간</button>
+        <button class="stage" type="button" aria-label="새 탭"><b>+</b></button>
+      </div>
+      <div class="spacer"></div>
+      <div class="initials"><label for="q">이니셜 입력</label><input id="q" type="search" placeholder="티켓, 주제, 대사" autocomplete="off"></div>
+      <button class="howto" id="howto" type="button" aria-expanded="false" aria-controls="legend">? 조작법</button>
+    </header>
+
+    <section class="strip">
+      <div class="slots" id="slots">
+        <section class="group needs">
+          <header><b>CONTINUE?</b><span>나를 기다림 2</span></header>
+          <div class="cells">
+            <button class="slot needs" type="button" data-term="t1" aria-pressed="true">
+              <span class="pic"><img src="standin/p_redkid.png" alt=""><small>P1</small></span>
+              <span class="who"><span class="key">ABC-1520</span><span class="topic">배포 승인</span><span class="topic">Claude</span></span>
+              <span class="say">prod 롤아웃을 진행할까요?</span>
+              <span class="state"><b>응답 대기</b><span class="clock">42초</span></span>
+            </button>
+            <button class="slot needs" type="button" data-term="t1" aria-pressed="false">
+              <span class="pic"><img src="standin/p_frog.png" alt=""><small>P2</small></span>
+              <span class="who"><span class="key">PAY-212</span><span class="topic">환불 정책</span><span class="topic">Codex</span></span>
+              <span class="say">테스트 픽스처를 지워도 될까요?</span>
+              <span class="state"><b>응답 대기</b><span class="clock">2분</span></span>
+            </button>
+          </div>
+        </section>
+        <section class="group play">
+          <header><b>NOW PLAYING</b><span>작업 중 3</span></header>
+          <div class="cells">
+            <button class="slot play" type="button" data-term="t2" aria-pressed="false">
+              <span class="pic"><img src="standin/p_brownkid.png" alt=""><small>P3</small></span>
+              <span class="who"><span class="key">ABC-1498</span><span class="topic">검색 랭킹</span><span class="topic">Claude</span></span>
+              <span class="say">인덱스 재구축 3/7</span>
+              <span class="state"><b>작업 중</b><span class="clock">18분</span></span>
+            </button>
+            <button class="slot play" type="button" data-term="t2" aria-pressed="false">
+              <span class="pic"><img src="standin/p_catgirl.png" alt=""><small>P4</small></span>
+              <span class="who"><span class="key">WEB-88</span><span class="topic">온보딩 폼</span><span class="topic">Gemini</span></span>
+              <span class="say">컴포넌트 테스트 작성 중</span>
+              <span class="state"><b>작업 중</b><span class="clock">6분</span></span>
+            </button>
+            <button class="slot play pause" type="button" data-term="t2" aria-pressed="false">
+              <span class="pic"><img src="standin/p_robot.png" alt=""><small>P5</small></span>
+              <span class="who"><span class="key">ABC-1533</span><span class="topic">로그 파서</span><span class="topic">Claude</span></span>
+              <span class="say">12분째 출력이 없음</span>
+              <span class="state"><b>멈춤</b><span class="clock">12분</span></span>
+            </button>
+          </div>
+        </section>
+        <section class="group clear">
+          <header><b>CLEAR!</b><span>끝남 2</span></header>
+          <div class="cells">
+            <button class="slot clear" type="button" data-term="t2" aria-pressed="false">
+              <span class="pic"><img src="standin/p_oldman.png" alt=""><small>P6</small></span>
+              <span class="who"><span class="key">ABC-1477</span><span class="topic">캐시 무효화</span><span class="topic">Claude</span></span>
+              <span class="say">PR #412 를 올렸어요</span>
+              <span class="state"><b>완료</b><span class="clock">9분 전</span></span>
+            </button>
+            <button class="slot clear" type="button" data-term="t2" aria-pressed="false">
+              <span class="pic"><img src="standin/p_pink.png" alt=""><small>P7</small></span>
+              <span class="who"><span class="key">OPS-31</span><span class="topic">알림 정리</span><span class="topic">Codex</span></span>
+              <span class="say">알림 규칙 정리 완료</span>
+              <span class="state"><b>완료</b><span class="clock">32분 전</span></span>
+            </button>
+          </div>
+        </section>
+        <div class="empty"><b>플레이어 없음</b><span>이 이니셜과 맞는 세션이 없어. 검색어를 지우면 전부 돌아와.</span></div>
+      </div>
+
+      <div class="scene" data-slot="scene 560x336, 오락실 장면 에셋">
+        <img src="standin/scene.png" alt="오락실 장면: 오락기 여섯 대 앞에서 플레이하는 캐릭터들">
+        <span class="tag" data-keep>임시 그림, 에셋 생성 후 교체</span>
+      </div>
+
+      <div class="legend" id="legend" hidden>
+        <h2>HOW TO PLAY</h2>
+        <p><span>세션 줄에 키보드 넘기기</span><kbd>ctrl alt P</kbd></p>
+        <p><span>계정 팝업</span><kbd>ctrl shift A</kbd></p>
+        <p><span>터미널 글자 크게, 작게</span><kbd>cmd + / cmd -</kbd></p>
+        <p><span>글자 크기 되돌리기</span><kbd>cmd 0</kbd></p>
+        <p><span>이전 터미널로</span><kbd>cmd [</kbd></p>
+        <p><span>다음 터미널로</span><kbd>cmd ]</kbd></p>
+        <p><span>카드 누르기</span><kbd>그 세션으로 이동</kbd></p>
+        <p><span>이 화면 닫기</span><kbd>? 또는 esc</kbd></p>
+      </div>
+    </section>
+
+    <section class="terms">
+      <article class="term needs is-focus" id="t1">
+        <header><img class="face" src="standin/p_redkid.png" alt=""><b>ABC-1520</b><span>claude, ~/git-repo/api</span></header>
+        <pre>⏺ 롤아웃 매니페스트를 확인했습니다.
+  image: api:1.42.0 → 1.43.0
+  replicas: 6 (maxSurge 2)
+
+<span class="q">? prod 에 롤아웃을 진행할까요?</span>
+  <span class="sel">❯ 1. 진행</span>
+    2. dev 에서 한 번 더 확인
+    3. 중단</pre>
+      </article>
+      <article class="term" id="t2">
+        <header><img class="face" src="standin/p_brownkid.png" alt=""><b>ABC-1498</b><span>claude, ~/git-repo/search</span></header>
+        <pre>⏺ 인덱스를 다시 만드는 중입니다 (3/7)
+  <span class="ok">✓</span> products_ko   182,044 docs
+  <span class="ok">✓</span> products_en    96,310 docs
+  <span class="ok">✓</span> faq            4,812 docs
+  ⠋ reviews       …
+
+<span class="dim">  ⎿ 남은 단계 4개</span></pre>
+      </article>
+    </section>
+  </main>
+</div>
+<script>
+(() => {
+  const slots = document.getElementById('slots');
+  const cards = [...slots.querySelectorAll('.slot')];
+  cards.forEach((c) => c.addEventListener('click', () => {
+    cards.forEach((x) => x.setAttribute('aria-pressed', String(x === c)));
+    document.querySelectorAll('.term').forEach((t) => t.classList.toggle('is-focus', t.id === c.dataset.term));
+  }));
+  document.getElementById('q').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    let shown = 0;
+    cards.forEach((c) => { const hit = !q || c.textContent.toLowerCase().includes(q); c.hidden = !hit; if (hit) shown++; });
+    slots.classList.toggle('is-empty', shown === 0);
+  });
+  const btn = document.getElementById('howto');
+  const legend = document.getElementById('legend');
+  const toggle = (open) => { legend.hidden = !open; btn.setAttribute('aria-expanded', String(open)); };
+  btn.addEventListener('click', () => toggle(legend.hidden));
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input')) return;
+    if (e.key === '?') toggle(legend.hidden);
+    if (e.key === 'Escape') toggle(false);
+  });
+})();
+</script>
+</body>
+</html>

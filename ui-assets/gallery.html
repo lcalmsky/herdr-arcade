@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>herdr-arcade 에셋</title>
+<style>
+body{margin:0;background:#120c24;color:#e9e4ff;font:14px -apple-system,"Apple SD Gothic Neo",sans-serif}
+main{max-width:1600px;margin:0 auto;padding:24px}
+h1{font-size:20px;margin:0 0 16px}
+figure{margin:0 0 32px}
+figcaption{margin:8px 0;color:#b9b0e0}
+img{max-width:100%;image-rendering:pixelated;border-radius:6px;background:#2a2050}
+</style>
+</head>
+<body>
+<main>
+<h1>herdr-arcade 생성 이미지</h1>
+<div id="list"></div>
+</main>
+<script>
+const files = ["style_anchor","background","cabinets","screens","chars_back","chars_front","chars_cheer","chars_sleep","props","effects"];
+const list = document.getElementById("list");
+for (const f of files) {
+  const fig = document.createElement("figure");
+  const img = new Image();
+  img.src = "raw/" + f + ".png?t=" + Date.now();
+  img.onerror = () => fig.remove();
+  const cap = document.createElement("figcaption");
+  cap.textContent = "raw/" + f + ".png";
+  fig.append(cap, img);
+  list.append(fig);
+}
+</script>
+</body>
+</html>

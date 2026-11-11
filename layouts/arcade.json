@@ -1,0 +1,221 @@
+{
+  "id": "root",
+  "type": "column",
+  "theme": "arcade",
+  "preview": "layouts/arcade.png",
+  "background": {
+    "gradient": [
+      "cab",
+      "canvas"
+    ],
+    "angle": 180
+  },
+  "terminal_padding": [
+    14,
+    12
+  ],
+  "titlebar": "none",
+  "traffic_lights": [
+    12,
+    16
+  ],
+  "padding": [
+    10,
+    14
+  ],
+  "gap": 10,
+  "resizable": false,
+  "children": [
+    {
+      "id": "marquee-bar",
+      "type": "row",
+      "size": {
+        "px": 40
+      },
+      "gap": 8,
+      "padding": [
+        0,
+        12
+      ],
+      "background": "cab",
+      "window_drag": true,
+      "children": [
+        {
+          "id": "lights-room",
+          "type": "column",
+          "children": [],
+          "size": {
+            "px": 44
+          },
+          "window_drag": true
+        },
+        {
+          "id": "cards-title",
+          "type": "block",
+          "content": {
+            "mod": "arcade-cards",
+            "props": {
+              "role": "head"
+            }
+          },
+          "size": {
+            "px": 180
+          }
+        },
+        {
+          "id": "tabs",
+          "type": "block",
+          "content": {
+            "mod": "arcade-tabs"
+          },
+          "min": 120,
+          "window_drag": false
+        },
+        {
+          "id": "cards-tools",
+          "type": "block",
+          "content": {
+            "mod": "arcade-cards",
+            "props": {
+              "role": "tools"
+            }
+          },
+          "size": {
+            "px": 380
+          }
+        }
+      ]
+    },
+    {
+      "id": "cab-top",
+      "type": "column",
+      "gap": 10,
+      "resizable": true,
+      "children": [
+        {
+          "id": "marquee",
+          "type": "block",
+          "size": {
+            "px": 340
+          },
+          "min": 240,
+          "max": 480,
+          "content": {
+            "mod": "arcade-scene",
+            "props": {
+              "frame": "marquee"
+            }
+          },
+          "border": {
+            "width": 3,
+            "color": "cabEdge"
+          },
+          "radius": 0
+        },
+        {
+          "id": "mid",
+          "type": "row",
+          "gap": 10,
+          "resizable": false,
+          "children": [
+            {
+              "id": "high-score-panel",
+              "type": "column",
+              "size": {
+                "px": 220
+              },
+              "resizable": false,
+              "children": [
+                {
+                  "id": "high-score",
+                  "type": "block",
+                  "content": {
+                    "mod": "arcade-rail",
+                    "props": {
+                      "variant": "board"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "main",
+              "type": "block",
+              "content": {
+                "tab": "active",
+                "pane": {
+                  "header": {
+                    "content": {
+                      "mod": "arcade-pane"
+                    },
+                    "reveal": "always",
+                    "height": 30,
+                    "position": "top"
+                  },
+                  "background": "background",
+                  "border": {
+                    "width": 2,
+                    "color": "border"
+                  },
+                  "focus": {
+                    "width": 2,
+                    "color": "accent"
+                  },
+                  "radius": 0,
+                  "gap": 8,
+                  "lone": true
+                }
+              },
+              "radius": 0
+            },
+            {
+              "id": "credit-panel",
+              "type": "column",
+              "size": {
+                "px": 200
+              },
+              "children": [
+                {
+                  "id": "credit",
+                  "type": "block",
+                  "content": {
+                    "mod": "arcade-accounts",
+                    "props": {
+                      "role": "board"
+                    }
+                  }
+                },
+                {
+                  "id": "rail-buttons",
+                  "type": "block",
+                  "size": {
+                    "px": 44
+                  },
+                  "content": {
+                    "mod": "arcade-rail",
+                    "props": {
+                      "role": "buttons"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "panel",
+      "type": "block",
+      "size": {
+        "px": 120
+      },
+      "content": {
+        "mod": "arcade-cards",
+        "props": {
+          "role": "panel"
+        }
+      }
+    }
+  ]
+}

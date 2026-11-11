@@ -1,0 +1,10 @@
+Generate an image (landscape 3:2, 1536x1024): a character pose sheet in a 4 rows x 6 columns grid, 24 cells.
+Same 16-bit pixel art style and palette as the arcade scene in the attached image (the right part of the screen): crisp pixel edges, bold dark pixel outlines, limited palette, light dithering, deep indigo and violet with neon magenta, cyan and warm yellow light. All designs are ORIGINAL and must not resemble any existing video game, character, mascot or brand.
+Six ORIGINAL small pixel characters, one per column, the same character all the way down its column: 1. kid in a red hoodie and jeans  2. small round silver robot  3. girl with cat-ear headband and purple skirt  4. big-headed old man with glasses and a cardigan  5. frog in a baseball cap  6. punk kid with pink spiky hair and headphones.
+One pose per row, the same pose across the row:
+row 1: seen from BEHIND, standing and playing an arcade game, both hands forward on an invisible joystick
+row 2: facing the viewer, one step forward, surprised, one hand raised
+row 3: facing the viewer, cheering with both arms up
+row 4: sitting slumped and asleep, head tilted, eyes closed
+All 24 figures are the same height and scale, full body, feet at the same baseline in each cell. No props, no cabinet, no text, no speech bubbles.
+Background: one flat solid #FF00FF magenta color, perfectly uniform, no gradient, no texture, no floor, no ground shadow. Never use pink or magenta inside any object. Each object sits alone in the center of its grid cell with wide empty margins; nothing touches the cell edges or other objects. Do not draw grid lines.

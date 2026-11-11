@@ -1,0 +1,10 @@
+Generate an image (landscape 3:2, 1536x1024): six small UI effect icons in a 2 rows x 3 columns grid.
+Same 16-bit pixel art style and palette as the arcade scene in the attached image (the right part of the screen): crisp pixel edges, bold dark pixel outlines, limited palette, light dithering, deep indigo and violet with neon magenta, cyan and warm yellow light. All designs are ORIGINAL and must not resemble any existing video game, character, mascot or brand.
+1. a white pixel speech bubble with a bold red "!" inside
+2. three stacked "z" letters getting smaller, light blue, for sleeping
+3. a white speech bubble with three dots "..."
+4. a yellow four-point twinkle sparkle
+5. an empty white speech bubble with a small tail at the bottom left
+6. a gold arcade token coin
+Flat, simple, readable at 32px.
+Background: one flat solid #FF00FF magenta color, perfectly uniform, no gradient, no texture, no floor, no ground shadow. Never use pink or magenta inside any object. Each object sits alone in the center of its grid cell with wide empty margins; nothing touches the cell edges or other objects. Do not draw grid lines.

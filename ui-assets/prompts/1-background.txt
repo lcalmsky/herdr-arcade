@@ -1,0 +1,6 @@
+Generate an image (landscape 3:2, 1536x1024): the EMPTY interior of the 1980s neighborhood arcade from the attached image, seen from the front, looking slightly down (about 15 degrees).
+Same 16-bit pixel art style and palette as the arcade scene in the attached image (the right part of the screen): crisp pixel edges, bold dark pixel outlines, limited palette, light dithering, deep indigo and violet with neon magenta, cyan and warm yellow light. All designs are ORIGINAL and must not resemble any existing video game, character, mascot or brand.
+Top 40%: back wall of dark purple brick with pink and cyan neon tubes bent into simple shapes (stars, a lightning bolt, wavy lines; NO letters, NO words), a small entrance door on the far left with a lit window, a long wooden bench against the back wall on the right, a potted plant, two hanging lamps.
+Bottom 60%: dark carpet with a cosmic pattern (small planets, stars, rings).
+Leave the middle of the floor completely open: arcade cabinets and characters will be placed there later as separate sprites.
+Draw NO arcade cabinets, NO machines, NO tables, NO characters, NO people, NO text, NO letters. Full-bleed scene: no UI, no window frame, no border.

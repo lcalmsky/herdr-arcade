@@ -1,0 +1,7 @@
+Generate an image (landscape 3:2, 1536x1024): six ORIGINAL upright arcade cabinets in a 2 rows x 3 columns grid.
+Same 16-bit pixel art style and palette as the arcade scene in the attached image (the right part of the screen): crisp pixel edges, bold dark pixel outlines, limited palette, light dithering, deep indigo and violet with neon magenta, cyan and warm yellow light. All designs are ORIGINAL and must not resemble any existing video game, character, mascot or brand.
+Front view with the same slight downward angle as the attached scene. All six have exactly the same size, shape and proportions; each is drawn whole, from the top marquee down to the floor base.
+Each screen is EMPTY: a plain pure black rectangle with nothing on it (screen content is added later).
+Control panel with one joystick and two round buttons. Each cabinet has its own color and its own simple pictogram on the marquee, no letters:
+1. magenta, a round blob monster  2. cyan, a ringed planet  3. purple, mountains  4. orange, a bar chart  5. yellow, a starburst  6. green, a checkered flag.
+Background: one flat solid #FF00FF magenta color, perfectly uniform, no gradient, no texture, no floor, no ground shadow. Never use pink or magenta inside any object. Each object sits alone in the center of its grid cell with wide empty margins; nothing touches the cell edges or other objects. Do not draw grid lines.
