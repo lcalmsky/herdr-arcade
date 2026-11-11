@@ -156,6 +156,38 @@
       "agent": "idle",
       "fixed": true,
       "lastAnswer": "ABC-1472 crash triage notes are in the doc."
+    },
+    {
+      "sid": "demo-abc-1473",
+      "key": "ABC-1473",
+      "name": "Session store",
+      "repo": "mobile",
+      "status": "busy",
+      "agoMs": 210000,
+      "meaningfulAgoMs": 6000,
+      "agent": "working",
+      "lastSentence": "ABC-1473 moving the session store to the new table."
+    },
+    {
+      "sid": "demo-web-2213",
+      "key": "WEB-2213",
+      "name": "Image pipeline",
+      "repo": "web",
+      "status": "busy",
+      "agoMs": 330000,
+      "meaningfulAgoMs": 8000,
+      "agent": "working",
+      "lastSentence": "WEB-2213 resizing thumbnails in the image pipeline."
+    },
+    {
+      "sid": "demo-abc-1474",
+      "key": "ABC-1474",
+      "name": "Invoice preview",
+      "repo": "api",
+      "status": "idle",
+      "agoMs": 660000,
+      "agent": "done",
+      "lastAnswer": "ABC-1474 invoice preview is ready for review."
     }
   ]
 }

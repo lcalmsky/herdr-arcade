@@ -7,13 +7,13 @@ import { existsSync, readFileSync } from "node:fs";
 import ArcadeScene, { RETURN_MS, SETTLE_MS, charOrderOf, charKey, chipKey } from "../mods/arcade-scene/main.js";
 import { MOOD_MOTION, dragLayers, motionLayers, walkLayers } from "../mods/arcade-scene/motion.js";
 import {
-  ART, BENCH_SPOTS, BUBBLE, BUBBLE_LIMIT, CABINETS, CAB_BASE_Y, CHIP, CHIP_GROUPS, CHIP_TONES, DESIGN,
-  DROP_AREA, ENTRY, FLOOR_SPOTS, FOOT_Y, FOCUS, FRAME_BG, LIFT, MARQUEE, POSE, SCREEN, SPECTATOR_SPOTS, VIEW, VIEWED_SPOTS,
-  WALK_Y,
-  assignSpots, bubbleHeight, bubbleLayers, bubbleLeft, bubbleText, bubbleVisible, bubbleWidth, characterOpacity, chipCounts,
-  coverScale,
-  COUNTDOWN, countdownDigit, countdownsOf, machineSessions,
-  machineMoods, moodGroup, overlapping, readFilter, screenBox, screenFor, shownByFilter, spriteBox, staggerTops,
+  ART, BUBBLE, BUBBLE_LIMIT, CAB_ART, CAB_BASE_Y, CAB_STEP, CAB_X0, CHIP, CHIP_GROUPS, CHIP_TONES, DESIGN,
+  DROP_AREA, FOOT_Y, FOCUS, FRAME_BG, LIFT, MARQUEE, ORDER, POSE, SCREEN, VIEW, WALK_IN_MARGIN, WALK_Y,
+  assignSpots, bubbleHeight, bubbleLayers, bubbleLeft, bubbleText, bubbleVisible, bubbleWidth, cabinetAt, cabinetCount,
+  characterOpacity, chipCounts, clampScroll, coverScale,
+  COUNTDOWN, countdownDigit, countdownsOf, machineSessions, maxScroll,
+  machineMoods, moodGroup, overlapping, readFilter, revealOffset, screenBox, screenFor, scrollDeltaOf, scrollOffset,
+  shownByFilter, spriteBox, staggerTops, stageWidthFor, tilesFor,
   toggleFilter, walkPosition, waypoints, legMs, whoOf,
   DRAG_SLOP, dragPoint, dropPoint, isDrag,
 } from "../mods/arcade-scene/scene.js";
@@ -60,12 +60,12 @@ function scene() {
   return { view, cx, queue, settle, advance };
 }
 
-test("the sessions already there when the scene loads stand in their places, without walking in", () => {
+test("the sessions already there when the scene loads stand at their own cabinets, without walking in", () => {
   const { view, cx } = scene();
   view.sync(cast([["a", "working"], ["v", "viewed"]]), cx);
   assert.equal(view.walks.size, 0, "the first cast starts no walk");
-  assert.deepEqual(view.drawn.a, feet([CABINETS[0].x, FOOT_Y.working]));
-  assert.deepEqual(view.drawn.v, feet(BENCH_SPOTS[0]));
+  assert.deepEqual(view.drawn.a, feet([CAB_X0, FOOT_Y.working]));
+  assert.deepEqual(view.drawn.v, feet([CAB_X0 + CAB_STEP, FOOT_Y.viewed]), "a read session gets a cabinet too");
 });
 
 test("a session that joins while the scene is still coming up stands in its place without walking", () => {
@@ -74,35 +74,37 @@ test("a session that joins while the scene is still coming up stands in its plac
   advance(SETTLE_MS - 1000);
   view.sync(cast([["a", "working"], ["b", "needs"]]), cx);
   assert.equal(view.walks.size, 0, "a late arrival inside the settle window starts no walk");
-  assert.deepEqual(view.drawn.b, feet([CABINETS[1].x, FOOT_Y.needs]), "it stands at its machine");
+  assert.deepEqual(view.drawn.b, feet([CAB_X0, FOOT_Y.needs]), "it stands at the first cabinet, where needs goes");
+  assert.deepEqual(view.drawn.a, feet([CAB_X0 + CAB_STEP, FOOT_Y.working]), "a shifts right with its cabinet");
 });
 
-test("a session that appears once the scene has settled walks in from the doorway to its machine", () => {
+test("a session that appears once the scene has settled walks in from the stage's right edge", () => {
   const { view, cx, advance, settle } = scene();
   view.sync(cast([["a", "working"]]), cx);
   advance(SETTLE_MS);
   view.sync(cast([["a", "working"], ["b", "needs"]]), cx);
+  const spawn = { x: stageWidthFor(2) - WALK_IN_MARGIN, y: WALK_Y };
   const walk = view.walks.get("b");
   assert.ok(walk, "the new session walks");
-  assert.deepEqual(walk.path[0], ENTRY, "it starts at the doorway");
-  assert.deepEqual(walk.path.at(-1), feet([CABINETS[1].x, FOOT_Y.needs]), "and ends at the second machine");
+  assert.deepEqual(walk.path[0], spawn, "it starts at the stage's right edge");
+  assert.deepEqual(walk.path.at(-1), feet([CAB_X0, FOOT_Y.needs]), "and ends at the first cabinet");
   assert.deepEqual(view.drawn.b, walk.legs[0].to, "it is drawn on the first leg");
   settle();
-  assert.deepEqual(view.drawn.b, feet([CABINETS[1].x, FOOT_Y.needs]), "the walk ends in front of the machine");
+  assert.deepEqual(view.drawn.b, feet([CAB_X0, FOOT_Y.needs]), "the walk ends in front of the cabinet");
 });
 
-test("a session walks in solid and its machine shows its play screen", () => {
+test("a session walks in solid and its cabinet shows its play screen", () => {
   const { view, cx, advance, settle } = scene();
   view.sync(cast([["a", "working"]]), cx);
   advance(SETTLE_MS);
   view.sync(cast([["a", "working"], ["b", "working"]]), cx);
-  assert.deepEqual(view.drawn.b, { x: ENTRY.x, y: WALK_Y }, "the first frame shows it on the walk");
+  assert.deepEqual(view.drawn.b, { x: CAB_X0 + CAB_STEP, y: WALK_Y }, "the first frame shows it on the walk");
   assert.equal(characterOpacity(true, false), 1, "a shown character never waits on a fade");
   settle();
-  assert.deepEqual(view.drawn.b, feet([CABINETS[1].x, FOOT_Y.working]), "the walk ends at its machine");
+  assert.deepEqual(view.drawn.b, feet([CAB_X0 + CAB_STEP, FOOT_Y.working]), "the walk ends at its cabinet");
   assert.equal(view.walks.has("b"), false);
   const moods = machineMoods(cast([["a", "working"], ["b", "working"]]), view.spots);
-  assert.deepEqual(moods, ["working", "working", null, null, null, null]);
+  assert.deepEqual(moods, ["working", "working"]);
   assert.equal(screenFor(moods[0]).art, "scr_play");
   assert.equal(characterOpacity(false, false), 0.15, "a filtered-out character is dimmed");
   assert.equal(characterOpacity(false, true), 1, "a carried one is solid");
@@ -115,116 +117,98 @@ test("a mood that moves the character walks it to its new place", () => {
   view.sync(cast([["a", "needs"]]), cx);
   const walk = view.walks.get("a");
   assert.ok(walk, "the mood change starts a walk");
-  assert.deepEqual(walk.path.at(-1), feet([CABINETS[0].x, FOOT_Y.needs]));
-  assert.equal(view.spots.a.cab, 0, "and it keeps the same machine");
+  assert.deepEqual(walk.path.at(-1), feet([CAB_X0, FOOT_Y.needs]));
+  assert.equal(view.spots.a.cab, 0, "and it keeps the same cabinet");
 });
 
-test("a session keeps its machine while its mood changes", () => {
+test("a mood change sorts the session into its new group's cabinet", () => {
   const first = assignSpots(cast([["a", "needs"], ["b", "stall"]]), {});
   assert.deepEqual([first.a.cab, first.b.cab], [0, 1]);
   const changed = assignSpots(cast([["a", "done"], ["b", "needs"]]), first);
-  assert.equal(changed.a.cab, 0, "the machine stays even though b's new mood outranks it");
-  assert.equal(changed.b.cab, 1);
-  assert.deepEqual([changed.a.x, changed.a.y], [CABINETS[0].x, FOOT_Y.done]);
-  assert.deepEqual([changed.b.x, changed.b.y], [CABINETS[1].x, FOOT_Y.needs]);
+  assert.equal(changed.b.cab, 0, "the new Needs you takes the first cabinet");
+  assert.equal(changed.a.cab, 1, "and the done one moves to the done group's place");
+  assert.deepEqual([changed.a.x, changed.a.y], [CAB_X0 + CAB_STEP, FOOT_Y.done]);
+  assert.deepEqual([changed.b.x, changed.b.y], [CAB_X0, FOOT_Y.needs]);
   assert.equal(changed.a.pose, "cheer");
   assert.equal(changed.b.pose, "alert");
 });
 
-test("a viewed session gives up its machine, and the next session takes the leftmost free one", () => {
+test("a viewed session keeps its own cabinet at the end of the row", () => {
   const three = assignSpots(cast([["a", "working"], ["b", "working"], ["c", "working"]]), {});
   assert.deepEqual([three.a.cab, three.b.cab, three.c.cab], [0, 1, 2]);
 
   const read = assignSpots(cast([["a", "working"], ["b", "viewed"], ["c", "working"]]), three);
-  assert.equal(read.b.kind, "viewed", "the read one leaves the machines");
-  assert.deepEqual([read.b.x, read.b.y], BENCH_SPOTS[0]);
+  assert.equal(read.b.kind, "cab", "the read one keeps a cabinet");
+  assert.equal(read.b.cab, 2, "after the working group");
+  assert.deepEqual([read.b.x, read.b.y], [CAB_X0 + 2 * CAB_STEP, FOOT_Y.viewed]);
   assert.equal(read.a.cab, 0);
-  assert.equal(read.c.cab, 2, "the machines it left behind are free");
+  assert.equal(read.c.cab, 1, "the working ones keep their order");
 
   const next = assignSpots(cast([["a", "working"], ["b", "viewed"], ["c", "working"], ["d", "needs"]]), read);
-  assert.equal(next.d.cab, 1, "a new session takes the leftmost empty machine");
-  assert.deepEqual([next.d.x, next.d.y], [CABINETS[1].x, FOOT_Y.needs]);
+  assert.equal(next.d.cab, 0, "a new Needs you takes the first cabinet");
+  assert.equal(next.a.cab, 1);
+  assert.equal(next.c.cab, 2);
+  assert.equal(next.b.cab, 3, "the read one stays last");
 });
 
-test("the seventh session past the machines watches from the aisle", () => {
+test("the row grows past six, one cabinet a session, and the art cycles", () => {
   const many = Array.from({ length: 7 }, (_, i) => [`s${i}`, "working"]);
   const spots = assignSpots(cast(many), {});
-  for (let i = 0; i < CABINETS.length; i += 1) {
+  for (let i = 0; i < many.length; i += 1) {
     assert.equal(spots[`s${i}`].kind, "cab");
     assert.equal(spots[`s${i}`].cab, i);
+    assert.deepEqual([spots[`s${i}`].x, spots[`s${i}`].y], [CAB_X0 + i * CAB_STEP, FOOT_Y.working]);
   }
-  const seventh = spots.s6;
-  assert.equal(seventh.kind, "spectator", "past the sixth machine there is no machine left");
-  assert.deepEqual([seventh.x, seventh.y], SPECTATOR_SPOTS[0]);
-  assert.equal(seventh.pose, "back");
-
-  const more = assignSpots(cast([...many, ["s7", "done"]]), spots);
-  assert.equal(more.s7.kind, "spectator");
-  assert.deepEqual([more.s7.x, more.s7.y], SPECTATOR_SPOTS[1], "watchers queue up in order");
+  assert.equal(cabinetCount(cast(many), spots), 7);
+  assert.equal(cabinetAt(6).art, CAB_ART[0], "the seventh cabinet reuses the first sprite");
+  assert.deepEqual(CAB_ART,
+    ["cab_magenta", "cab_cyan", "cab_purple", "cab_orange", "cab_yellow", "cab_green"]);
 });
 
-test("watchers fill the empty right floor, then the right-hand gaps, in rows towards the viewer", () => {
-  const many = Array.from({ length: 15 }, (_, i) => [`s${i}`, "working"]);
-  const spots = assignSpots(cast(many), {});
-  const watchers = many.slice(6).map(([id]) => spots[id]);
-  assert.deepEqual(watchers.slice(0, 5).map((spot) => [spot.x, spot.y]),
-    [[1250, 810], [1400, 810], [1007, 810], [832, 810], [657, 810]], "the right floor first, then the gaps");
-  assert.deepEqual(watchers.slice(5, 10).map((spot) => [spot.x, spot.y]),
-    [[1250, 860], [1400, 860], [1007, 860], [832, 860]], "the overflow takes the row closer to the viewer");
-  for (const spot of watchers) {
-    assert.equal(spot.kind, "spectator");
-    assert.ok(spot.y >= 810 && spot.y <= 860, "watchers stay in the front aisle");
-    assert.ok(!CABINETS.some((cabinet) => cabinet.x === spot.x), "no watcher stands on a machine's x, where needs stands");
-    assert.ok(![FOOT_Y.working, FOOT_Y.needs, FOOT_Y.done, FOOT_Y.stall].includes(spot.y),
-      "no watcher shares a player's line");
-  }
-  assert.equal(new Set(watchers.map((spot) => `${spot.x},${spot.y}`)).size, watchers.length,
-    "every watcher gets a place of their own");
-});
-
-test("machines go to needs, then done, then stall, then working", () => {
-  const moods = ["working", "stall", "done", "needs", "working", "stall", "working", "working"];
+test("cabinets take needs, then stall, then done, then working, then viewed", () => {
+  const moods = ["working", "stall", "done", "needs", "working", "viewed"];
   const spots = assignSpots(cast(moods.map((mood, i) => [`p${i}`, mood])), {});
-  assert.deepEqual([spots.p3.cab, spots.p2.cab], [0, 1], "needs and done take the first two machines");
-  assert.deepEqual([spots.p1.cab, spots.p5.cab], [2, 3], "then the stalls, in cast order");
-  assert.deepEqual([spots.p0.cab, spots.p4.cab], [4, 5], "working sessions take what is left");
-  assert.equal(spots.p6.kind, "spectator", "the lowest-priority working session watches");
-  assert.equal(spots.p7.kind, "spectator");
+  assert.equal(spots.p3.cab, 0, "needs first");
+  assert.equal(spots.p1.cab, 1, "then a stall");
+  assert.equal(spots.p2.cab, 2, "then done");
+  assert.equal(spots.p0.cab, 3, "then working, in cast order");
+  assert.equal(spots.p4.cab, 4);
+  assert.equal(spots.p5.cab, 5, "read last");
+  assert.deepEqual(ORDER, { needs: 0, stall: 1, done: 2, working: 3, viewed: 4 });
 });
 
-test("a session that already has a machine keeps it when a needier one arrives", () => {
-  const first = assignSpots(cast([["w", "working"]]), {});
-  const next = assignSpots(cast([["w", "working"], ["n", "needs"]]), first);
-  assert.equal(next.w.cab, 0, "the working session keeps machine 0");
-  assert.equal(next.n.cab, 1, "the new Needs you takes the free machine");
+test("a new session arriving into another group shifts the sessions after its slot", () => {
+  const first = assignSpots(cast([["w", "working"], ["v", "viewed"]]), {});
+  assert.deepEqual([first.w.cab, first.v.cab], [0, 1]);
+  const next = assignSpots(cast([["w", "working"], ["n", "needs"], ["v", "viewed"]]), first);
+  assert.equal(next.n.cab, 0, "the new Needs you takes the first cabinet");
+  assert.equal(next.w.cab, 1, "the working one moves one right");
+  assert.equal(next.v.cab, 2, "and the read one stays at the end");
 });
 
-test("read sessions sleep on the bench, then on the floor in front of it", () => {
-  const four = assignSpots(cast([["a", "viewed"], ["b", "viewed"], ["c", "viewed"], ["d", "viewed"]]), {});
-  assert.deepEqual([four.a.x, four.a.y], BENCH_SPOTS[0]);
-  assert.deepEqual([four.b.x, four.b.y], BENCH_SPOTS[1]);
-  assert.deepEqual([four.c.x, four.c.y], BENCH_SPOTS[2]);
-  assert.deepEqual([four.d.x, four.d.y], FLOOR_SPOTS[0]);
-  for (const id of ["a", "b", "c", "d"]) {
-    assert.equal(four[id].kind, "viewed");
-    assert.equal(four[id].pose, "sleep");
-  }
-  assert.deepEqual([...BENCH_SPOTS, ...FLOOR_SPOTS], VIEWED_SPOTS);
+test("a read session stands asleep at its own cabinet on the demo screen", () => {
+  const one = assignSpots(cast([["a", "viewed"]]), {});
+  assert.deepEqual([one.a.x, one.a.y], [CAB_X0, FOOT_Y.viewed]);
+  assert.equal(one.a.kind, "cab");
+  assert.equal(one.a.pose, "sleep");
+  assert.deepEqual(screenFor(one.a.mood), { art: "scr_demo", opacity: 0.7 });
 });
 
-test("a sleeping session keeps its bench spot while its mood is unchanged", () => {
-  const first = assignSpots(cast([["a", "viewed"], ["b", "viewed"]]), {});
-  const reordered = assignSpots(cast([["b", "viewed"], ["a", "viewed"]]), first);
-  assert.deepEqual(reordered.a, first.a);
-  assert.deepEqual(reordered.b, first.b);
+test("sessions keep their cabinets while their moods are unchanged, however the scan orders them", () => {
+  const people = [["a", "viewed"], ["b", "working"], ["c", "needs"], ["d", "done"]];
+  const first = assignSpots(cast(people), {});
+  const reordered = assignSpots(cast([...people].reverse()), first);
+  for (const [id] of people) assert.deepEqual(reordered[id], first[id]);
 });
 
-test("no two sessions are given the same place", () => {
+test("no two sessions are given the same cabinet", () => {
   const moods = ["working", "needs", "stall", "done", "viewed"];
-  const people = Array.from({ length: 11 }, (_, i) => [`p${i}`, moods[i % moods.length]]);
+  const people = Array.from({ length: 21 }, (_, i) => [`p${i}`, moods[i % moods.length]]);
   const spots = assignSpots(cast(people), {});
   const places = Object.values(spots).map((spot) => `${spot.kind}:${spot.x},${spot.y}`);
   assert.equal(new Set(places).size, places.length);
+  assert.deepEqual(Object.values(spots).map((spot) => spot.cab).sort((a, b) => a - b),
+    Array.from({ length: people.length }, (_, i) => i));
 });
 
 test("the machines show each mood's screen and a still demo when empty or read", () => {
@@ -236,10 +220,10 @@ test("the machines show each mood's screen and a still demo when empty or read",
   assert.deepEqual(screenFor("viewed"), { art: "scr_demo", opacity: 0.7 });
 });
 
-test("a machine's screen follows the session standing at it", () => {
+test("a cabinet's screen follows the session standing at it", () => {
   const people = cast([["a", "working"], ["b", "viewed"], ["c", "needs"]]);
   const moods = machineMoods(people, assignSpots(people, {}));
-  assert.deepEqual(moods, ["needs", "working", null, null, null, null]);
+  assert.deepEqual(moods, ["needs", "working", "viewed"]);
   assert.deepEqual(screenFor(moods[0]).art, "scr_continue");
   assert.deepEqual(screenFor(moods[1]).art, "scr_play");
   assert.deepEqual(screenFor(moods[2]).art, "scr_demo");
@@ -278,10 +262,11 @@ test("the countdown sits over the digit the continue art draws", () => {
 });
 
 test("the screen inset is cut from the cabinet sprite's own box", () => {
-  const box = spriteBox(CABINETS[0].art, CABINETS[0].x, CAB_BASE_Y, 1);
-  const slot = screenBox(CABINETS[0], 1);
-  assert.equal(box.left, CABINETS[0].x - ART[CABINETS[0].art].anchor[0]);
-  assert.equal(box.top, CAB_BASE_Y - ART[CABINETS[0].art].anchor[1]);
+  const cabinet = cabinetAt(0);
+  const box = spriteBox(cabinet.art, cabinet.x, CAB_BASE_Y, 1);
+  const slot = screenBox(cabinet, 1);
+  assert.equal(box.left, cabinet.x - ART[cabinet.art].anchor[0]);
+  assert.equal(box.top, CAB_BASE_Y - ART[cabinet.art].anchor[1]);
   assert.ok(Math.abs(slot.left - (box.left + box.width * SCREEN.x0)) < 1e-9);
   assert.ok(Math.abs(slot.top - (box.top + box.height * SCREEN.y0)) < 1e-9);
   assert.ok(Math.abs(slot.width - box.width * (SCREEN.x1 - SCREEN.x0)) < 1e-9);
@@ -311,6 +296,8 @@ test("the art table carries every manifest size and anchor at density 2", () => 
   }
   assert.deepEqual(manifest.assets.glow.size, manifest.assets.shadow.size, "the glow fills the shadow's box");
   assert.deepEqual(manifest.assets.glow.anchor, manifest.assets.shadow.anchor);
+  const mirror = new URL("../mods/arcade-scene/art/background_mirror.webp", import.meta.url);
+  assert.ok(existsSync(mirror), "the mirrored background tile ships for the seam");
 });
 
 test("the stage fits the focus box, filling the width or centring the design with FRAME_BG at its sides", () => {
@@ -352,7 +339,7 @@ test("the stage fits the focus box, filling the width or centring the design wit
   assert.ok(huge.left > 0, "its design is narrow enough to leave FRAME_BG on both sides");
 });
 
-test("the marquee frame fills the block's width and starts at the cabinet tops", () => {
+test("the marquee frame fills the block's width, grows with the row and starts at the cabinet tops", () => {
   assert.deepEqual(MARQUEE, { x0: 0, y: 332, topFraction: 0 });
   for (const ratio of [4, 5.5, 7]) {
     const H = 300;
@@ -364,13 +351,20 @@ test("the marquee frame fills the block's width and starts at the cabinet tops",
     assert.ok(Math.abs(cover.top + MARQUEE.y * cover.scale - MARQUEE.topFraction * H) < 1e-9,
       "the cabinet tops sit on the block's top edge");
   }
+  // Sixteen sessions make a stage wider than the block, which is why the marquee scrolls.
+  const wide = stageWidthFor(16);
+  const grown = coverScale(1680, 340, "marquee", wide);
+  assert.equal(grown.width, wide * grown.scale, "the stage carries the whole row");
+  assert.ok(grown.width > 1680, "sixteen cabinets run past the block");
+  assert.equal(stageWidthFor(6), DESIGN.width, "six cabinets still fit the background");
   assert.deepEqual(coverScale(560, 336, "run"), coverScale(560, 336), "any other frame keeps the focus-box fit");
   assert.deepEqual(coverScale(560, 336), coverScale(560, 336, null));
 });
 
 test("the 340 px marquee reaches the screens' lower edge and the waiting characters' heads", () => {
-  const cabinetTop = Math.min(...CABINETS.map((cabinet) => CAB_BASE_Y - ART[cabinet.art].anchor[1]));
-  const screenBottom = Math.max(...CABINETS.map((cabinet) =>
+  const cabinets = Array.from({ length: CAB_ART.length }, (_, index) => cabinetAt(index));
+  const cabinetTop = Math.min(...cabinets.map((cabinet) => CAB_BASE_Y - ART[cabinet.art].anchor[1]));
+  const screenBottom = Math.max(...cabinets.map((cabinet) =>
     CAB_BASE_Y - ART[cabinet.art].anchor[1] + ART[cabinet.art].size[1] * SCREEN.y1));
   const alertTop = Math.max(...Object.keys(ART).filter((name) => name.endsWith("_alert"))
     .map((name) => FOOT_Y.needs - ART[name].size[1]));
@@ -389,16 +383,15 @@ test("every character spot and the marquee stay inside the stage across block sh
     const pose = name.slice(name.lastIndexOf("_") + 1);
     (artsByPose[pose] ??= []).push(name);
   }
+  const cabinets = Array.from({ length: CAB_ART.length }, (_, index) => cabinetAt(index));
   const spots = [];
-  for (const cabinet of CABINETS) {
+  for (const cabinet of cabinets) {
     for (const [mood, y] of Object.entries(FOOT_Y)) {
       spots.push({ label: `${mood} at ${cabinet.x}`, x: cabinet.x, y, arts: artsByPose[POSE[mood]] });
     }
   }
-  for (const [x, y] of SPECTATOR_SPOTS) spots.push({ label: `spectator ${x},${y}`, x, y, arts: artsByPose.back });
-  for (const [x, y] of VIEWED_SPOTS) spots.push({ label: `viewed ${x},${y}`, x, y, arts: artsByPose.sleep });
 
-  const marqueeTop = CAB_BASE_Y - Math.max(...CABINETS.map((cabinet) => ART[cabinet.art].anchor[1]));
+  const marqueeTop = CAB_BASE_Y - Math.max(...cabinets.map((cabinet) => ART[cabinet.art].anchor[1]));
   const EPS = 1e-6;
   for (const ratio of [1.6, 2.0, 2.5, 3.0, 3.4]) {
     const H = 300;
@@ -419,6 +412,45 @@ test("every character spot and the marquee stay inside the stage across block sh
       }
     }
   }
+});
+
+test("the stage takes the last cabinet plus a margin, never less than the background", () => {
+  assert.equal(stageWidthFor(0), DESIGN.width);
+  assert.equal(stageWidthFor(1), DESIGN.width);
+  assert.equal(stageWidthFor(6), DESIGN.width);
+  assert.equal(stageWidthFor(8), CAB_X0 + 7 * CAB_STEP + 120, "eight cabinets run past the background");
+  assert.equal(stageWidthFor(16), CAB_X0 + 15 * CAB_STEP + 120);
+  assert.equal(tilesFor(DESIGN.width), 1);
+  assert.equal(tilesFor(DESIGN.width + 1), 2);
+  assert.equal(tilesFor(stageWidthFor(16)), 2, "sixteen cabinets need two background tiles");
+  assert.equal(tilesFor(DESIGN.width * 2 + 1), 3);
+});
+
+test("the scroll clamps to the row and follows the wheel and trackpad", () => {
+  const wide = stageWidthFor(16);
+  assert.equal(maxScroll(wide, 1456), wide - 1456);
+  assert.equal(clampScroll(-40, wide, 1456), 0);
+  assert.equal(clampScroll(99999, wide, 1456), wide - 1456);
+  assert.equal(clampScroll(300, 1200, 1456), 0, "a stage that fits does not scroll");
+
+  assert.equal(scrollDeltaOf({ delta: { x: 30, y: 2 } }), 30, "sideways travel wins");
+  assert.equal(scrollDeltaOf({ delta: { x: 0, y: -12 } }), -12, "the vertical wheel scrolls the row");
+  assert.equal(scrollDeltaOf({ delta_lines: { x: 0, y: 1 } }), 60, "a line report becomes pixels");
+  assert.equal(scrollDeltaOf({}), 0);
+  assert.equal(scrollOffset(300, { delta: { x: 40, y: 0 } }, wide, 1456), 260);
+  assert.equal(scrollOffset(300, { delta: { x: 0, y: -40 } }, wide, 1456), 340, "wheel up moves right");
+  assert.equal(scrollOffset(0, { delta: { x: 40, y: 0 } }, wide, 1456), 0, "never past the left end");
+  assert.equal(scrollOffset(99999, { delta: { x: -40, y: 0 } }, wide, 1456), wide - 1456);
+});
+
+test("revealing a cabinet scrolls it inside the viewport with its neighbours in view", () => {
+  const wide = stageWidthFor(16);
+  const viewport = 1456;
+  assert.equal(revealOffset(0, CAB_X0, wide, viewport), 0, "a cabinet already in view stays");
+  assert.equal(revealOffset(0, 1800, wide, viewport), 1800 - viewport + 150, "a right one scrolls in");
+  assert.equal(revealOffset(1000, 900, wide, viewport), 900 - 150, "a left one backs up");
+  assert.equal(revealOffset(0, CAB_X0 + 10 * CAB_STEP, wide, viewport),
+    clampScroll(CAB_X0 + 10 * CAB_STEP - viewport + 150, wide, viewport));
 });
 
 test("the frame colour is the arcade's dark purple", () => {
@@ -529,8 +561,8 @@ test("a walk reaches its place on the clock alone, even when no timer ever fires
     globalThis.herdrState = undefined;
   }
   assert.equal(view.walks.has("b"), false, "the finished walk is gone");
-  assert.deepEqual(view.drawn.b, feet([CABINETS[1].x, FOOT_Y.needs]), "the render puts b at its place");
-  assert.deepEqual(view.drawn.a, feet([CABINETS[0].x, FOOT_Y.working]), "a stays at its place");
+  assert.deepEqual(view.drawn.b, feet([CAB_X0, FOOT_Y.needs]), "the render puts b at the first cabinet");
+  assert.deepEqual(view.drawn.a, feet([CAB_X0 + CAB_STEP, FOOT_Y.working]), "a stays at its own cabinet");
 });
 
 test("a render between timers draws the leg the clock has reached", () => {
@@ -695,14 +727,16 @@ test("the chip keys move the filter highlight and wrap, and ↩ or Space toggle 
 
 test("a mid-walk re-route walks on from the new path and the old leg's timer does nothing", () => {
   const { view, cx, queue, settle } = scene();
-  view.sync(cast([["a", "working"]]), cx);
+  view.sync(cast([["a", "working"], ["b", "working"]]), cx);
   settle();
-  assert.deepEqual(view.drawn.a, feet([CABINETS[0].x, FOOT_Y.working]));
+  assert.deepEqual(view.drawn.a, feet([CAB_X0, FOOT_Y.working]));
 
-  view.sync(cast([["a", "needs"]]), cx);
+  view.sync(cast([["a", "needs"], ["b", "working"]]), cx);
   const oldWalk = view.walks.get("a");
   const oldTimer = queue.at(-1);
-  view.sync(cast([["a", "viewed"]]), cx);
+  // A read session drops to the end of the row, so this walk heads for a new cabinet, not just a
+  // new foot line.
+  view.sync(cast([["a", "viewed"], ["b", "working"]]), cx);
   const newWalk = view.walks.get("a");
   assert.notEqual(newWalk, oldWalk, "the re-route installs a new walk");
   const where = { ...view.drawn.a };
@@ -712,7 +746,7 @@ test("a mid-walk re-route walks on from the new path and the old leg's timer doe
   assert.deepEqual(view.drawn.a, where, "and the character does not jump back to the old path");
 
   settle();
-  assert.deepEqual(view.drawn.a, feet(BENCH_SPOTS[0]), "the re-routed walk ends on the bench");
+  assert.deepEqual(view.drawn.a, feet([CAB_X0 + CAB_STEP, FOOT_Y.viewed]), "the re-routed walk ends at its cabinet");
   assert.equal(view.walks.has("a"), false, "the finished walk is gone");
 });
 
@@ -742,7 +776,8 @@ test("a mixed cast renders, bubbles and all", () => {
     for (const task of queue.splice(0)) if (!task.cancelled) task.fn(cx);
     assert.doesNotThrow(() => view.render(cx));
     assert.deepEqual(Object.keys(view.drawn).sort(), ["d", "n", "n2", "s", "v", "w"]);
-    assert.equal(view.spots.v.kind, "viewed");
+    assert.equal(view.spots.v.kind, "cab");
+    assert.equal(view.spots.v.cab, 5, "the read session takes the last cabinet");
     assert.equal(view.spots.n.cab, 0);
   } finally {
     globalThis.herdrState = undefined;
@@ -768,7 +803,7 @@ test("the marquee frame draws no speech bubbles while the full scene still does"
   }
 });
 
-test("seventeen sessions still render with every machine and every bench taken", () => {
+test("seventeen sessions render one cabinet each, with no one watching from the floor", () => {
   const { view, cx, queue } = scene();
   const moods = ["needs", "working", "stall", "done", "viewed"];
   const people = Array.from({ length: 17 }, (_, i) => ({ id: `p${i}`, mood: moods[i % moods.length], who: "cat", topic: `topic ${i}` }));
@@ -777,10 +812,10 @@ test("seventeen sessions still render with every machine and every bench taken",
     assert.doesNotThrow(() => view.render(cx));
     for (const task of queue.splice(0)) if (!task.cancelled) task.fn(cx);
     assert.doesNotThrow(() => view.render(cx));
-    const kinds = Object.values(view.spots).map((spot) => spot.kind);
-    assert.equal(kinds.filter((kind) => kind === "cab").length, 6);
-    assert.ok(kinds.includes("viewed"));
-    assert.ok(kinds.includes("spectator"));
+    const spots = Object.values(view.spots);
+    assert.equal(spots.length, 17);
+    assert.ok(spots.every((spot) => spot.kind === "cab"), "every session stands at a cabinet");
+    assert.equal(cabinetCount(people, view.spots), 17);
   } finally {
     globalThis.herdrState = undefined;
   }
@@ -870,7 +905,7 @@ test("a drag past the slop follows the pointer and drops at the clamped floor po
   const { view, cx, settle } = scene();
   view.sync(cast([["a", "needs"]]), cx);
   settle();
-  const spot = feet([CABINETS[0].x, FOOT_Y.needs]);
+  const spot = feet([CAB_X0, FOOT_Y.needs]);
   view.scale = 0.5;
   view.dragStart("a", { x: 100, y: 100 }, cx);
   view.dragMove({ x: 120, y: 116 }, cx);
@@ -913,7 +948,7 @@ test("a mood change unpins the character and walks it to its new place", () => {
   assert.equal(view.pinned.has("a"), false);
   const walk = view.walks.get("a");
   assert.ok(walk, "the character walks to its new place");
-  assert.deepEqual(walk.path.at(-1), feet([CABINETS[0].x, FOOT_Y.working]));
+  assert.deepEqual(walk.path.at(-1), feet([CAB_X0, FOOT_Y.working]));
 });
 
 test("a dropped character stays for RETURN_MS and then walks back to its own place on the clock", () => {
@@ -945,12 +980,12 @@ test("a dropped character stays for RETURN_MS and then walks back to its own pla
   const walk = view.walks.get("a");
   assert.ok(walk, "past RETURN_MS the return walk starts");
   assert.equal(walk.started, droppedAt + RETURN_MS, "it starts on the clock, not the render");
-  assert.deepEqual(walk.path.at(-1), feet([CABINETS[0].x, FOOT_Y.needs]), "it heads for the assigned place");
+  assert.deepEqual(walk.path.at(-1), feet([CAB_X0, FOOT_Y.needs]), "it heads for the assigned place");
   assert.equal(view.pinned.has("a"), false, "the drop no longer pins it");
 
   advance(walk.total);
   show([["a", "needs"]]);
-  assert.deepEqual(view.drawn.a, feet([CABINETS[0].x, FOOT_Y.needs]), "the walk ends on its own place");
+  assert.deepEqual(view.drawn.a, feet([CAB_X0, FOOT_Y.needs]), "the walk ends on its own place");
   assert.equal(view.walks.has("a"), false, "the finished walk is gone");
 });
 
@@ -975,7 +1010,7 @@ test("a click on a character whose drag is still open ends the drag and does not
     const entry = { id: "a", mood: "needs", focus: { pane: "p1" } };
     view.sync([entry], cx);
     settle();
-    const spot = feet([CABINETS[0].x, FOOT_Y.needs]);
+    const spot = feet([CAB_X0, FOOT_Y.needs]);
     view.scale = 1;
     view.dragStart("a", { x: 100, y: 100 }, cx);
     view.dragMove({ x: 140, y: 110 }, cx);
@@ -1021,7 +1056,7 @@ test("a hover-out with only a press ends the drag without pinning", () => {
   view.dragEnd(cx);
   assert.equal(view.drag, null);
   assert.equal(view.pinned.size, 0);
-  assert.deepEqual(view.drawn.a, feet([CABINETS[0].x, FOOT_Y.needs]), "the character stays on its place");
+  assert.deepEqual(view.drawn.a, feet([CAB_X0, FOOT_Y.needs]), "the character stays on its place");
 });
 
 test("removing a session clears its pin and the drag carrying it", () => {
@@ -1051,7 +1086,7 @@ test("a mood change while carried walks the drop to the new mood's place", () =>
   const { view, cx, settle } = scene();
   view.sync(cast([["a", "needs"]]), cx);
   settle();
-  const spot = feet([CABINETS[0].x, FOOT_Y.needs]);
+  const spot = feet([CAB_X0, FOOT_Y.needs]);
   view.scale = 1;
   view.dragStart("a", { x: 100, y: 100 }, cx);
   view.dragMove({ x: 140, y: 110 }, cx);
@@ -1061,7 +1096,7 @@ test("a mood change while carried walks the drop to the new mood's place", () =>
   assert.equal(view.pinned.has("a"), false, "the new mood keeps the drop from pinning");
   const walk = view.walks.get("a");
   assert.ok(walk, "the drop starts a walk");
-  assert.deepEqual(walk.path.at(-1), feet([CABINETS[0].x, FOOT_Y.working]), "it ends at the working place");
+  assert.deepEqual(walk.path.at(-1), feet([CAB_X0, FOOT_Y.working]), "it ends at the working place");
   assert.deepEqual(walk.path[0], { x: spot.x + 40, y: spot.y + 10 }, "it starts at the drop point");
 });
 
@@ -1071,7 +1106,7 @@ test("a drag started mid-walk picks the character up where it is drawn", () => {
   settle();
   view.sync(cast([["a", "viewed"]]), cx);
   const walk = view.walks.get("a");
-  const from = feet([CABINETS[0].x, FOOT_Y.needs]);
+  const from = feet([CAB_X0, FOOT_Y.needs]);
   assert.deepEqual(walk.legs[0].from, from);
   assert.deepEqual(walk.legs[0].to, { x: from.x, y: WALK_Y });
   assert.deepEqual(view.drawn.a, { x: from.x, y: WALK_Y }, "drawn holds the leg's destination");
@@ -1082,10 +1117,35 @@ test("a drag started mid-walk picks the character up where it is drawn", () => {
   assert.deepEqual(view.drag.start, { x: from.x, y: (from.y + WALK_Y) / 2 }, "half-way down the leg, not at its end");
 });
 
-test("the reading position is on the bench at the right of the room", () => {
-  for (const [x, y] of BENCH_SPOTS) assert.ok(x >= 1200 && x <= 1515 && y <= 355, `bench spot ${x},${y}`);
-  for (const [x, y] of FLOOR_SPOTS) assert.ok(y > 355, "the floor overflow is on the floor");
-  assert.deepEqual(SPECTATOR_SPOTS[0], [1250, 810]);
+test("a selected cabinet scrolls the marquee into view, and the same selection leaves it alone", () => {
+  const { view, cx } = scene();
+  const people = Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, mood: "working", who: "kid", topic: `topic ${i}` }));
+  people[0] = { ...people[0], selected: false };
+  people[15] = { ...people[15], selected: true };
+  view.stage = { W: 1680, H: 340 };
+  view.frame = "marquee";
+  globalThis.herdrState = { shared: { "arcade-cards": { cast: people } } };
+  try {
+    view.render(cx);
+    const spot = view.spots.p15;
+    assert.ok(view.offset > 0, "the far cabinet scrolls the row");
+    assert.ok(spot.x >= view.offset && spot.x <= view.offset + view.viewportWidth, "the selected cabinet is in view");
+    const before = view.offset;
+    view.render(cx);
+    assert.equal(view.offset, before, "an unchanged selection does not move the row again");
+  } finally {
+    globalThis.herdrState = undefined;
+  }
+});
+
+test("a session that closes drops its cabinet from the row", () => {
+  const first = assignSpots(cast([["a", "working"], ["b", "needs"], ["c", "viewed"]]), {});
+  assert.equal(cabinetCount(cast([["a", "working"], ["b", "needs"], ["c", "viewed"]]), first), 3);
+  const smaller = cast([["a", "working"], ["c", "viewed"]]);
+  const next = assignSpots(smaller, first);
+  assert.equal(cabinetCount(smaller, next), 2);
+  assert.equal(next.b, undefined, "the closed session has no cabinet");
+  assert.deepEqual(machineMoods(smaller, next), ["working", "viewed"]);
 });
 
 test("a stale cast at launch followed by the live one seats everyone at the live spots without walking", () => {

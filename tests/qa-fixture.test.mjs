@@ -41,7 +41,7 @@ function modelOf(stdout) {
   return { parsed, model: v.buildModel(Date.now()), view: v };
 }
 
-test("the fixture installs thirteen demo sessions that parse into every group", () => {
+test("the fixture installs sixteen demo sessions that parse into every group", () => {
   const root = home();
   try {
     run([root]);
@@ -49,7 +49,7 @@ test("the fixture installs thirteen demo sessions that parse into every group", 
       "the original scan is kept beside the fixture");
     const stdout = execFileSync("sh", [join(root, "mods", "arcade-cards", "scan.sh")], { encoding: "utf8" });
     const { parsed, model } = modelOf(stdout);
-    assert.equal(parsed.sessions.length, 13);
+    assert.equal(parsed.sessions.length, 16);
     assert.equal(parsed.meta.t, "meta");
     assert.equal(parsed.meta.error, null);
     for (const row of parsed.sessions) assert.deepEqual(Object.keys(row).sort(), SESSION_FIELDS);
@@ -59,9 +59,9 @@ test("the fixture installs thirteen demo sessions that parse into every group", 
     const stalls = model.attention.filter((item) => item.bucket === "stall");
     assert.equal(waiting.length, 1, "one session needs an answer");
     assert.equal(stalls.length, 1, "one busy session has been quiet past ten minutes");
-    assert.equal(model.working.length, 9);
-    assert.equal(model.done.length, 2, "two done cards, one of them opened (viewed) by the stage");
-    assert.deepEqual(model.counts, { attention: 2, working: 9, done: 2 });
+    assert.equal(model.working.length, 11);
+    assert.equal(model.done.length, 3, "three done cards: two unread and one opened (viewed) by the stage");
+    assert.deepEqual(model.counts, { attention: 2, working: 11, done: 3 });
     assert.deepEqual(model.attention.map((item) => item.sessionId).sort(),
       ["demo-abc-1401", "demo-web-2230"]);
     assert.equal(model.working.find((item) => item.sessionId === "demo-abc-1402").progress.done, 4);
@@ -87,9 +87,9 @@ test("the viewed card is the done one the app has opened, and a seen one leaves"
     const viewed = view.buildModel(Date.now());
     assert.equal(viewed.done.filter((item) => item.viewed).length, 1);
     assert.equal(viewed.done.find((item) => item.sessionId === "demo-abc-1472").viewed, true);
-    assert.equal(viewed.done.length, 2, "an opened card stays until it is dismissed");
+    assert.equal(viewed.done.length, 3, "an opened card stays until it is dismissed");
     view.seen = [...view.viewed];
-    assert.equal(view.buildModel(Date.now()).done.length, 1, "a seen card leaves the strip");
+    assert.equal(view.buildModel(Date.now()).done.length, 2, "a seen card leaves the strip");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -106,14 +106,16 @@ test("the fixture's cards give the marquee every mood", () => {
     view.viewed = ["demo-abc-1472+" + Math.floor(parsed.sessions.find((row) => row.sessionId === "demo-abc-1472").statusUpdatedAt / 1000)];
     const data = view.viewData(Date.now());
     const cast = castOf(data.allGroups, null, () => null);
-    assert.equal(cast.length, 13);
+    assert.equal(cast.length, 16);
     assert.deepEqual([...new Set(cast.map((entry) => entry.mood))].sort(),
       ["done", "needs", "stall", "viewed", "working"]);
     const moods = machineMoods(cast, assignSpots(cast, {}));
-    assert.deepEqual([...new Set(moods)].sort(), ["done", "needs", "stall", "working"],
-      "the six cabinets mix CONTINUE, HIGH SCORE, PAUSE and a game being played");
-    assert.equal(moods.filter((mood) => mood === "working").length, 3,
-      "three cabinets show a child playing, one per watching character");
+    assert.equal(moods.length, 16, "one cabinet per session");
+    assert.deepEqual(moods.slice(0, 5), ["needs", "stall", "done", "done", "working"],
+      "needs first, then the stall, then the unread done cards, then working");
+    assert.equal(moods.filter((mood) => mood === "working").length, 11);
+    assert.equal(moods.filter((mood) => mood === "viewed").length, 1);
+    assert.equal(moods.at(-1), "viewed", "the opened card's cabinet sits last");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

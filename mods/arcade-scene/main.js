@@ -3,13 +3,14 @@
 // the card itself would focus.
 
 import { View, div, image } from "gpui-kit";
-import { shared, run, settings, setShared, props } from "herdr";
+import { focused, shared, run, settings, setShared, props } from "herdr";
 import { dragLayers, motionLayers, walkLayers } from "./motion.js";
 import {
-  ART, BUBBLE, BUBBLE_LIMIT, CAB_BASE_Y, CABINETS, CHIP, CHIP_GROUPS, CHIP_TONES, COUNTDOWN, ENTRY, FRAME_BG, LIFT,
-  assignSpots, bubbleHeight, bubbleLayers, bubbleLeft, bubbleText, bubbleVisible, bubbleWidth, characterOpacity, chipCounts,
-  countdownsOf, coverScale, dragPoint, dropPoint, isDrag, machineMoods, readFilter, screenBox, screenFor, shownByFilter,
-  spriteBox, staggerTops, toggleFilter, walkAt, walkLegs, waypoints, whoOf,
+  ART, BUBBLE, BUBBLE_LIMIT, CAB_BASE_Y, CHIP, CHIP_GROUPS, CHIP_TONES, COUNTDOWN, DESIGN, DROP_AREA, FRAME_BG, LIFT,
+  assignSpots, bubbleHeight, bubbleLayers, bubbleLeft, bubbleText, bubbleVisible, bubbleWidth, cabinetAt, cabinetCount,
+  characterOpacity, chipCounts, clampScroll, countdownsOf, coverScale, dragPoint, dropPoint, isDrag, machineMoods, readFilter,
+  revealOffset, screenBox, screenFor, scrollOffset, shownByFilter, spriteBox, staggerTops, stageWidthFor, tilesFor,
+  toggleFilter, WALK_IN_MARGIN, WALK_Y, walkAt, walkLegs, waypoints, whoOf,
 } from "./scene.js";
 
 const LANDING_MS = 220;
@@ -29,6 +30,14 @@ const BUBBLE_FILL = "#f1f0ff";
 // The characters the keyboard can reach: a session with no focus target is not one of them.
 export function charOrderOf(cast) {
   return (Array.isArray(cast) ? cast : []).filter((entry) => entry?.focus).map((entry) => entry.id);
+}
+
+// The cast entry behind the pane or terminal Herdr has focused, when the cards have no selection.
+function focusedCast(cast) {
+  const at = focused();
+  if (!at) return null;
+  return cast.find((entry) => entry.focus
+    && ((at.pane && entry.focus.pane === at.pane) || (at.terminal && entry.focus.terminal === at.terminal))) ?? null;
 }
 
 // A chip key: ←→ move the highlight and wrap; ↩ and Space toggle the chip shown.
@@ -125,6 +134,10 @@ export default class ArcadeScene extends View {
     this.justDragged = false;
     this.scale = 1;
     this.stage = null;
+    this.stageWidth = DESIGN.width;
+    this.viewportWidth = 0;
+    this.offset = 0;
+    this.scrolledTo = null;
     this.frame = props()?.frame ?? null;
     // A ring comes from is_focused(), and the shell redraws only on notify or reload.
     cx.timer.every(FOCUS_WATCH_MS, (later) => this.watchFocus(later));
@@ -181,14 +194,15 @@ export default class ArcadeScene extends View {
       const spot = spots[entry.id];
       if (!spot) continue;
       if (!this.drawn[entry.id]) {
-        // The sessions already on their way when the scene comes up are seated where they play;
-        // one that appears once the scene has settled walks in through the doorway.
+        // The sessions already on their way when the scene comes up are seated where they play.
         if (settling) {
           this.drawn[entry.id] = { x: spot.x, y: spot.y };
           continue;
         }
-        this.drawn[entry.id] = { x: ENTRY.x, y: ENTRY.y };
-        this.startWalk(entry.id, waypoints(ENTRY, spot), cx);
+        // A session that joins once the scene has settled walks in from the stage's right edge.
+        const spawn = { x: stageWidthFor(cast.length) - WALK_IN_MARGIN, y: WALK_Y };
+        this.drawn[entry.id] = { ...spawn };
+        this.startWalk(entry.id, waypoints(spawn, spot), cx);
         continue;
       }
       const moodChanged = previous[entry.id] && previous[entry.id].mood !== spot.mood;
@@ -276,7 +290,7 @@ export default class ArcadeScene extends View {
       this.pinned.delete(drag.id);
       this.droppedAt.delete(drag.id);
     }
-    drag.carried = dragPoint(drag.start, drag.fromWin, windowPos, this.scale);
+    drag.carried = dragPoint(drag.start, drag.fromWin, windowPos, this.scale, this.dropMaxX());
     this.drawn[drag.id] = { ...drag.carried };
     cx.notify();
   }
@@ -286,7 +300,7 @@ export default class ArcadeScene extends View {
     if (!drag) return;
     this.drag = null;
     if (!drag.carried) return;
-    const foot = dropPoint(drag.carried);
+    const foot = dropPoint(drag.carried, this.dropMaxX());
     this.drawn[drag.id] = foot;
     const spot = this.spots[drag.id];
     if (spot && spot.mood !== drag.mood) {
@@ -307,6 +321,32 @@ export default class ArcadeScene extends View {
       later.notify();
     });
     cx.notify();
+  }
+
+  // The right end a dropped character may reach: the stage's right edge keeps the same inset.
+  dropMaxX() {
+    return this.stageWidth - (DESIGN.width - DROP_AREA.right);
+  }
+
+  // The wheel and the trackpad move the marquee sideways; the offset is clamped to the row.
+  wheel(event, cx) {
+    const { W, H } = this.stage ?? { W: 560, H: 276 };
+    const cover = coverScale(W, H, this.frame, this.stageWidth);
+    const viewport = W / cover.scale;
+    const next = scrollOffset(this.offset, event, this.stageWidth, viewport, cover.scale);
+    if (next === this.offset) return;
+    this.offset = next;
+    cx.notify();
+  }
+
+  // The cards' selection, else the pane Herdr has focused, brings its cabinet into view once.
+  revealFocus(cast) {
+    const target = cast.find((entry) => entry.selected) ?? focusedCast(cast);
+    const id = target?.id ?? null;
+    if (id === this.scrolledTo) return;
+    this.scrolledTo = id;
+    const spot = id ? this.spots[id] : null;
+    if (spot) this.offset = revealOffset(this.offset, spot.x, this.stageWidth, this.viewportWidth);
   }
 
   // The squash after a drop ends on the clock, so a timer that never fires cannot leave the
@@ -346,7 +386,7 @@ export default class ArcadeScene extends View {
         ? []
         : walking
           ? walkLayers(base, s)
-          : motionLayers(spot.kind === "spectator" ? "viewed" : spot.mood, base, s);
+          : motionLayers(spot.mood, base, s);
     const face = art(name);
     const squashed = (el) => el.absolute().left((base.width - width) / 2).top(base.height - height).w(width).h(height);
     const content = squash ? squashed(face) : face.w(base.width).h(base.height);
@@ -399,14 +439,21 @@ export default class ArcadeScene extends View {
     this.charAt = Math.min(Math.max(this.charAt ?? 0, 0), Math.max(0, charOrder.length - 1));
     this.sync(cast, cx);
     const { W, H } = this.stage ?? { W: 560, H: 276 };
-    const cover = coverScale(W, H, this.frame);
+    const stageWidth = stageWidthFor(cast.length);
+    const cover = coverScale(W, H, this.frame, stageWidth);
     const s = cover.scale;
     this.scale = s;
+    this.stageWidth = stageWidth;
+    this.viewportWidth = W / s;
+    this.offset = clampScroll(this.offset, stageWidth, this.viewportWidth);
+    this.revealFocus(cast);
 
     const scenery = [];
     const machines = machineMoods(cast, this.spots);
+    const cabinetTotal = cabinetCount(cast, this.spots);
     this.needsOn = machines.includes("needs");
-    CABINETS.forEach((cabinet, index) => {
+    for (let index = 0; index < cabinetTotal; index += 1) {
+      const cabinet = cabinetAt(index);
       const box = spriteBox(cabinet.art, cabinet.x, CAB_BASE_Y, s);
       scenery.push({ depth: CAB_BASE_Y, order: 0,
         element: art(cabinet.art).absolute().left(box.left).top(box.top).w(box.width).h(box.height) });
@@ -420,11 +467,11 @@ export default class ArcadeScene extends View {
         });
       }
       scenery.push({ depth: CAB_BASE_Y, order: 1, element });
-    });
+    }
 
     // A needs machine counts down over its screen, in the yellow the layout uses for focus.
     for (const { cab, digit } of countdownsOf(cast, this.spots, this.now())) {
-      const slot = screenBox(CABINETS[cab], s);
+      const slot = screenBox(cabinetAt(cab), s);
       const box = {
         left: slot.left + slot.width * COUNTDOWN.x0,
         top: slot.top + slot.height * COUNTDOWN.y0,
@@ -463,7 +510,7 @@ export default class ArcadeScene extends View {
       const pose = walking ? "alert" : spot.pose;
       const name = `${whoOf(entry.who)}_${pose}`;
       const head = { x: position.x, y: position.y - ART[name].size[1] };
-      if (shown && !dragging && spot.kind !== "spectator") {
+      if (shown && !dragging) {
         if (entry.mood === "stall") {
           const box = spriteBox("dots", head.x + 20, head.y - 10, s);
           scenery.push({ depth: position.y + 0.01, order: 2,
@@ -488,7 +535,7 @@ export default class ArcadeScene extends View {
 
       // The marquee crops at the chest, so a bubble there would float over a body no longer in
       // view; the control panel's info area carries the line instead.
-      const limit = spot.kind === "spectator" || this.frame === "marquee" ? 0 : BUBBLE_LIMIT[entry.mood];
+      const limit = this.frame === "marquee" ? 0 : BUBBLE_LIMIT[entry.mood];
       const text = limit ? bubbleText(entry.topic ?? "", limit) : "";
       if (text && !dragging && shown && bubbleVisible(entry.mood, entry.id, this.hovered)) {
         const flagged = entry.mood === "needs";
@@ -511,15 +558,24 @@ export default class ArcadeScene extends View {
     }
 
     const sorted = scenery.slice().sort((a, b) => a.depth - b.depth || a.order - b.order).map((item) => item.element);
+    // Every other tile is the mirrored art, so the seam where a tile ends matches the one it meets.
+    const tiles = [];
+    for (let index = 0; index < tilesFor(stageWidth); index += 1) {
+      const source = index % 2 ? "background_mirror" : "background";
+      tiles.push(art(source).absolute().left(index * DESIGN.width * s).top(0)
+        .w(DESIGN.width * s).h(DESIGN.height * s));
+    }
     return div().id("arcade-scene").size_full()
       .on_size_change((size, cx) => this.sizeChanged(size, cx))
       .child(div().id("arcade-frame").w(W).h(H).relative().overflow_hidden().rounded(0).bg(FRAME_BG)
         .on_mouse_move((event, cx) => this.dragMove(event.position, cx))
         .on_mouse_up("left", (_event, cx) => this.dragEnd(cx))
+        .on_scroll_wheel((event, cx) => this.wheel(event, cx))
         .on_hover((hovered, cx) => {
           if (!hovered) this.dragEnd(cx);
         })
-        .child(div().id("arcade-stage").absolute().left(cover.left).top(cover.top).w(cover.width).h(cover.height)
+        .child(div().id("arcade-stage").absolute().left(cover.left - this.offset * s).top(cover.top)
+          .w(cover.width).h(cover.height)
           .track_focus(this.charHandle).tab_index(0)
           .on_mouse_down("left", () => { this.charKeys = false; })
           .on_key_down((event, cx) => {
@@ -534,7 +590,7 @@ export default class ArcadeScene extends View {
             cx.stop_propagation();
             cx.notify();
           })
-          .child(art("background").absolute().left(0).top(0).w(cover.width).h(cover.height))
+          .children(tiles)
           .children(sorted)
           .children(bubbles))
         .child(div().id("arcade-chips").absolute().top(8).right(8).flex().gap(6)

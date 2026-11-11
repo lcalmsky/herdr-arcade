@@ -1,9 +1,10 @@
 # Arcade Cards
 
 An 80s arcade at night, cut as the front of one cabinet. A marquee bar across the top names the
-space, numbers its tabs as stages and holds the search field. Below it, six lit cabinets stand in
-the dark; one character per session plays, waits, cheers or sleeps, and everybody else watches
-from the floor. The middle row is the cabinet's screen face: a HIGH SCORE board on the left, a
+space, numbers its tabs as stages and holds the search field. Below it, one lit cabinet per
+session stands in the dark and the row scrolls sideways when it outgrows the marquee; each
+character plays, waits, cheers or sleeps at its own machine. The middle row is the cabinet's screen
+face: a HIGH SCORE board on the left, a
 square CRT in the centre and a CREDIT panel on the right with each account's usage and a coin slot
 under it. The bottom is the control panel: a joystick, one round button per session with its
 character, P number and status lamp, and the selected session's line of dialogue.
@@ -20,10 +21,11 @@ dark room `canvas` `#191035` (180° gradient, 10 px between rows):
    border. Right (380 px): the branch chip, the "N to read" page chip and a search field on
    `#191035` with a 2 px `#483e74` border (`#f9d544` when it has the keyboard).
 2. **Marquee** — 340 px at load, 240–480 px, its lower edge is the only drag boundary. The arcade
-   art fills the width: six cabinets in magenta, cyan, purple, orange, yellow and green, mounted at
-   3 px `cabEdge` `#6b3fd1`, each with a lit screen and one character in front. Three filter chips
-   sit in the top-right corner: a magenta dot and "needs you N", a cyan dot and "working N", a
-   yellow dot and "done N".
+   art fills the width: one cabinet per session, mounted at 3 px `cabEdge` `#6b3fd1`, each with a
+   lit screen and one character in front. The cabinet sprites cycle magenta, cyan, purple, orange,
+   yellow and green; past the background's 1536 px the room repeats, mirrored every other tile. The
+   wheel or a sideways swipe scrolls the row. Three filter chips sit in the top-right corner: a
+   magenta dot and "needs you N", a cyan dot and "working N", a yellow dot and "done N".
 3. **Middle row** — 10 px gaps. **HIGH SCORE**: 220 px, `#251b47` card with a 2 px `#483e74`
    border, a yellow `HIGH SCORE` heading in Galmuri14, then each repository's name as a heading
    and one 30 px row per space — rank `01`, a 16 px face or a dashed placeholder, the ticket key in
@@ -50,21 +52,24 @@ Every session is one of five moods, read from the cards' scan:
 
 | Mood | In the arcade | The panel and the rest |
 | --- | --- | --- |
-| working | Stands with its back to you at its machine (`y` 700). The screen loops the play art at 85–100 % opacity. | NOW PLAYING, cyan `#3adaf2` lamp and word. |
+| working | Stands with its back to you at its own cabinet (`y` 700). The screen loops the play art at 85–100 % opacity. | NOW PLAYING, cyan `#3adaf2` lamp and word. |
 | needs (blocked, waiting for you) | Steps out to `y` 800 in the alert pose. The screen blinks the CONTINUE? art, magenta, and a yellow digit counts 9 → 0 each second over it. A `!` bubble leads its line, always visible, cut at 16 characters. | CONTINUE?, magenta `#ff41b4` lamp blinking, magenta word. |
-| stall | Stays at its machine with its back turned, and the screen shows the static PAUSE art. Its line shows only while the pointer is on it, cut at 12 characters. | CONTINUE?, grey `#d0cdea`. |
+| stall | Stays at its cabinet with its back turned, and the screen shows the static PAUSE art. Its line shows only while the pointer is on it, cut at 12 characters. | CONTINUE?, grey `#d0cdea`. |
 | done | Cheers at `y` 720 with a pulsing sparkle over its head and the HIGH SCORE screen lit. | CLEAR!, yellow `#f9d544` lamp. |
-| viewed (read already) | Sleeps on the back bench (three spots), then on the floor in front of it (three more), with a zzz that floats up and fades. | CLEAR!, lamp at 35 % opacity. |
+| viewed (read already) | Sleeps at its own cabinet (`y` 700) on the demo screen, with a zzz that floats up and fades. | CLEAR!, lamp at 35 % opacity. |
 
-A machine with no session shows the demo screen at 70 % opacity. A seventh session and later do
-not get a machine: they watch from the right-hand floor, then the gaps between the right machines,
-in rows towards the viewer.
+Cabinets run needs you, stall, done and unread, working, then read, left to right, so the row and
+the card strip agree. A session keeps its cabinet while its mood is unchanged; a mood change moves
+it into its new group's slot and it walks there. There are no watchers: every session has a
+cabinet, and the row keeps growing (the stage is the last cabinet's x plus a margin, or the
+background's 1536 px, whichever is wider).
 
-**What moves.** A session that appears after the first scan walks in from the doorway at design
-(105, 380), down to the aisle at `y` 760, across and up to its place. A mood change walks it to the
-new mood's spot the same way; a character keeps its machine. The needs countdown, the blinking
-screens and lamps, the zzz, the sparkle and the `!` are all read from the clock at render, so a
-timer that never fires still shows the right frame.
+**What moves.** A session that appears after the first scan walks in from the stage's right edge,
+down to the aisle at `y` 760, across and up to its cabinet. A mood change walks it to the new
+cabinet the same way. The needs countdown, the blinking screens and lamps, the zzz, the sparkle and
+the `!` are all read from the clock at render, so a timer that never fires still shows the right
+frame. The wheel and trackpad scroll the marquee sideways, clamped to the row; when the cards'
+selection or Herdr's focused pane changes, the row scrolls its cabinet into view.
 
 **Pointer.** Click a character to focus the pane its card would focus. Drag one: after 4 px of
 travel it lifts 28 px and follows the pointer; released, it lands inside x 40–1490, y 420–860 with
@@ -142,9 +147,10 @@ popover, legend), `cards` (the horizontal strip, kept for other layouts), `links
 Icon assets come from the shipped `mods/workspace-chrome/` and `mods/pane/` mods.
 
 **arcade-scene** draws the cast from `shared("arcade-cards")` and the mood filter from
-`shared("arcade-filter")`. `assignSpots` places each session (six machines, three bench spots,
-three floor spots, then spectator rows); `waypoints`/`walkLegs`/`walkAt` are the walk;
-`screenFor` picks the machine art. Clicking a character runs `pane.focus` with the card's target.
+`shared("arcade-filter")`. `assignSpots` gives every session its own cabinet in mood order;
+`stageWidthFor` grows the stage, `scrollOffset`/`revealOffset` move the marquee, and
+`waypoints`/`walkLegs`/`walkAt` are the walk; `screenFor` picks the cabinet art. Clicking a
+character runs `pane.focus` with the card's target.
 
 **arcade-rail** publishes the two side blocks. `variant: "board"` (`role` default `spaces` unused
 here) draws HIGH SCORE from `spaces()`/`agents()`: a row per space grouped by the repository its
@@ -169,8 +175,9 @@ remembers each space's side panel in localStorage, and runs the tab, layout and 
 `cmd-=`/`cmd-+` → `arcade-cards.font_in`, `cmd--` → `font_out`, `cmd-0` → `font_reset`,
 `cmd-[` → `back`, `cmd-]` → `forward`.
 
-**Art.** `mods/arcade-scene/art/*.webp` holds the room, the six cabinets, five screen stills, the
-character poses, shadows, glow and the `!`/sparkle/zzz/dots marks. The characters' 256 px sprites
+**Art.** `mods/arcade-scene/art/*.webp` holds the room, its mirrored tile, the six cabinet sprites,
+five screen stills, the character poses, shadows, glow and the `!`/sparkle/zzz/dots marks. The
+characters' 256 px sprites
 and 64 px faces ship in `mods/arcade-cards/chars/` and `mods/arcade-rail/faces/`; Galmuri11 and
 Galmuri14 ship with the mods.
 
@@ -181,10 +188,10 @@ Galmuri14 ship with the mods.
   cabinet's own buttons (the joystick, the P buttons, the faces).
 - The marquee crops the characters' bodies at the chest and draws no speech bubbles; the same line
   lives in the control panel's info area. The marquee fit is a width fit only: scale `W / 1456`,
-  top `-332 × scale`; it must not add side bands.
-- Six machines are hard limits. Viewed sessions use three bench and three floor spots before the
-  spill positions; spectators fill five x positions per row at `y` 810 and 860. Count the cast
-  before assuming a spot exists.
+  top `-332 × scale`; it must not add side bands. A wider row scrolls instead of zooming out.
+- There is no cabinet limit: the stage grows to `last cabinet x + 120`, the background repeats in
+  1536 px tiles, and every other tile uses `background_mirror.webp` so the seams match. Viewed
+  sessions keep a cabinet at the right end; nobody stands on the floor.
 - The control panel has no `VirtualList` and ignores its measured size: hover cards render at
   `k = 1`, and the panel does not scale.
 - A drop lands only inside x 40–1490, y 420–860, sits for 8 s and then walks home; the walk is
@@ -201,9 +208,10 @@ Galmuri14 ship with the mods.
 
 - `node --import ./tests/stubs/register.mjs --test tests/` is green. The suite proves, among other
   things: the layout tree and its 10 px gaps; the square, `border`-edged CRT; the coin slot and
-  settings block inside `credit-panel`; the six-machine placement and the bench/floor/spectator
-  overflow; the needs countdown and screen art per mood; the 4 px drag slop and the drop box; and
-  a dropped character holding for `RETURN_MS` then walking home on the clock with no timer firing.
+  settings block inside `credit-panel`; the one-cabinet-per-session row and its mood order; the
+  growing stage, its mirrored background tiles and the scroll clamp; the needs countdown and screen
+  art per mood; the 4 px drag slop and the drop box; and a dropped character holding for
+  `RETURN_MS` then walking home on the clock with no timer firing.
 - `HERDR_APP_HOME=/tmp/harc ./tools/install.sh` prints `check passed` for all seven mods
   (`arcade-cards`, `arcade-scene`, `arcade-rail`, `arcade-accounts`, `arcade-tabs`, `arcade-pane`,
   `arcade-editor`).

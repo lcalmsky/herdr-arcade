@@ -1,5 +1,6 @@
-// Placement, machine assignment, screens, bubbles and walk paths for the arcade. Everything
-// here is pure and in design pixels: the background is 1536 × 1024, and main.js scales the stage.
+// Placement, cabinet assignment, screens, bubbles, scrolling and walk paths for the arcade.
+// Everything here is pure and in design pixels: the background is 1536 × 1024, and main.js scales
+// the stage.
 
 export const DESIGN = { width: 1536, height: 1024 };
 // The stage keeps the focus box in view. These are its across edges, design x 80..1536. topY is
@@ -8,48 +9,48 @@ export const DESIGN = { width: 1536, height: 1024 };
 export const VIEW = { x0: 80, x1: 1536, topY: 330, topFraction: 0.12 };
 export const FRAME_BG = "#191035";
 
-export const ENTRY = { x: 105, y: 380 };
 export const WALK_Y = 760;
+// A session joining after the settling window walks in from this far inside the stage's right edge.
+export const WALK_IN_MARGIN = 80;
 
 // The marquee frame starts at the cabinets' upper edge: the design is fitted across x 80..1536,
 // so no side band shows, and MARQUEE.y is the design y that lands on the block's top.
 // MARQUEE.x0 starts the view at the art's left edge so the cabinet row sits nearer the middle.
 export const MARQUEE = { x0: 0, y: 332, topFraction: 0 };
 
-// The six cabinets, left to right, and the depth their base stands at.
-export const CABINETS = [
-  { art: "cab_magenta", x: 220 },
-  { art: "cab_cyan", x: 395 },
-  { art: "cab_purple", x: 570 },
-  { art: "cab_orange", x: 745 },
-  { art: "cab_yellow", x: 920 },
-  { art: "cab_green", x: 1095 },
-];
+// One cabinet per session, left to right: the first stands at CAB_X0, then one every CAB_STEP,
+// and the art cycles through the six cabinets in this order.
+export const CAB_X0 = 220;
+export const CAB_STEP = 175;
+export const CAB_ART = ["cab_magenta", "cab_cyan", "cab_purple", "cab_orange", "cab_yellow", "cab_green"];
+// Room after the last cabinet's centre, so its sprite clears the stage's right edge.
+export const STAGE_MARGIN = 120;
 export const CAB_BASE_Y = 640;
+
+export function cabinetAt(index) {
+  return { art: CAB_ART[index % CAB_ART.length], x: CAB_X0 + index * CAB_STEP };
+}
+
+// The stage grows with the cabinet row and never shrinks below the background's own width.
+export function stageWidthFor(count) {
+  const cabinets = Math.max(0, Math.floor(count) || 0);
+  const right = cabinets ? CAB_X0 + (cabinets - 1) * CAB_STEP + STAGE_MARGIN : 0;
+  return Math.max(DESIGN.width, right);
+}
+
+// How many 1536 px background tiles the stage needs.
+export function tilesFor(stageWidth) {
+  return Math.max(1, Math.ceil(stageWidth / DESIGN.width));
+}
 // The screen inset inside a cabinet sprite, as fractions of its box.
 export const SCREEN = { x0: 0.196, x1: 0.804, y0: 0.283, y1: 0.541 };
 
-// Where each mood stands in front of its machine, and the pose it wears there.
-export const FOOT_Y = { working: 700, stall: 700, needs: 800, done: 720 };
+// Where each mood stands in front of its cabinet, and the pose it wears there.
+export const FOOT_Y = { working: 700, stall: 700, needs: 720, done: 720, viewed: 700 };
 export const POSE = { working: "back", stall: "back", needs: "alert", done: "cheer", viewed: "sleep" };
 
-// Read sessions sleep on the bench, then on the floor in front of it.
-export const BENCH_SPOTS = [[1265, 330], [1355, 330], [1445, 330]];
-export const FLOOR_SPOTS = [[1300, 430], [1420, 430], [1360, 470]];
-export const VIEWED_SPOTS = [...BENCH_SPOTS, ...FLOOR_SPOTS];
-// Sessions past the sixth machine watch from the empty floor on the right first, then the gaps
-// between the right-hand machines, away from the left machines a needing player steps out from.
-export const SPECTATOR_X = [1250, 1400, 1007, 832, 657];
-export const SPECTATOR_ROW_Y = [810, 860];
-const SPECTATOR_ROW_GAP = SPECTATOR_ROW_Y[1] - SPECTATOR_ROW_Y[0];
-export function spectatorSpot(index) {
-  const row = Math.floor(index / SPECTATOR_X.length);
-  return { x: SPECTATOR_X[index % SPECTATOR_X.length], y: SPECTATOR_ROW_Y[0] + row * SPECTATOR_ROW_GAP };
-}
-export const SPECTATOR_SPOTS = Array.from({ length: 10 }, (_, index) => {
-  const spot = spectatorSpot(index);
-  return [spot.x, spot.y];
-});
+// The group each mood sits in, left to right: needs you, stalls, done and unread, working, read.
+export const ORDER = { needs: 0, stall: 1, done: 2, working: 3, viewed: 4 };
 
 // Sizes and anchors in design px: art/manifest.json's logical sizes at density 2.
 export const ART = {
@@ -96,14 +97,9 @@ export const ART = {
   glow: { size: [176, 48], anchor: [88, 24] },
 };
 
-// The box the stage must always show. A session asleep on the bench sits above the cabinets'
-// marquee, so the top is a bench sleeper's head rather than the marquee; the bottom is the lowest
-// aisle row's feet plus a 12 px step.
-export const FOCUS = {
-  x0: VIEW.x0, x1: VIEW.x1,
-  top: BENCH_SPOTS[0][1] - ART.kid_sleep.size[1],
-  bottom: SPECTATOR_ROW_Y[SPECTATOR_ROW_Y.length - 1] + 12,
-};
+// The box an un-cropped frame must always show: its top leaves room above the cabinet tops, and
+// its bottom leaves room under the lowest foot (a Needs you character steps out to y 800).
+export const FOCUS = { x0: VIEW.x0, x1: VIEW.x1, top: 218, bottom: 872 };
 
 const WHO = ["kid", "robot", "cat", "oldman", "frog", "punk"];
 
@@ -149,9 +145,18 @@ export function countdownDigit(since, now) {
   return String(9 - (step % 10));
 }
 
-// The session each machine shows, or null for an empty machine.
+// The cabinets in the row, in order, each with the session standing at it; every session has one.
+export function cabinetCount(cast, spots) {
+  let count = 0;
+  for (const entry of cast) {
+    const spot = spots?.[entry.id];
+    if (spot?.kind === "cab") count = Math.max(count, spot.cab + 1);
+  }
+  return count;
+}
+
 export function machineSessions(cast, spots) {
-  const rows = CABINETS.map(() => null);
+  const rows = Array.from({ length: cabinetCount(cast, spots) }, () => null);
   for (const entry of cast) {
     const spot = spots?.[entry.id];
     if (spot?.kind === "cab") rows[spot.cab] = entry;
@@ -159,7 +164,7 @@ export function machineSessions(cast, spots) {
   return rows;
 }
 
-// The machines showing a countdown now, with the digit each has reached.
+// The cabinets showing a countdown now, with the digit each has reached.
 export function countdownsOf(cast, spots, now) {
   const rows = [];
   machineSessions(cast, spots).forEach((entry, cab) => {
@@ -179,80 +184,34 @@ export function screenFor(mood) {
   return { art: "scr_demo", opacity: 0.7 };
 }
 
-const key = (spot) => `${spot.x},${spot.y}`;
-
-// Which waiting session is given a free machine first: the one that needs attention, then the
-// one that just finished, then a stall, and a working one last.
-export const MOOD_PRIORITY = { needs: 0, done: 1, stall: 2, working: 3 };
-
-// One spot per cast entry. A session keeps the machine it holds while its mood changes, and a
-// read one gives it up for the bench; the free machines go to the waiting sessions in
-// MOOD_PRIORITY order (cast order within a mood), leftmost machine first. Sessions past the
-// sixth machine queue up between the machines to watch.
+// One cabinet per cast entry, numbered left to right in ORDER. A session keeps its slot while its
+// mood is unchanged, even when the scan hands the cast back in another order; a mood change sorts
+// it into its new group, and it walks to that cabinet. Within a group the previous slot decides,
+// so sessions that do not move never reshuffle. A new session appends to its group.
 export function assignSpots(cast, previous = {}) {
+  const entries = cast.map((entry, index) => ({ entry, index, before: previous?.[entry.id]?.cab ?? null }));
+  entries.sort((a, b) => {
+    const rank = (ORDER[a.entry.mood] ?? ORDER.working) - (ORDER[b.entry.mood] ?? ORDER.working);
+    if (rank) return rank;
+    const pa = a.before ?? Infinity;
+    const pb = b.before ?? Infinity;
+    if (pa !== pb) return pa - pb;
+    return a.index - b.index;
+  });
   const assigned = {};
-  const machines = new Map();
-  const used = new Set();
-  for (const entry of cast) {
-    if (entry.mood === "viewed") continue;
-    const before = previous?.[entry.id];
-    if (before?.cab != null && before.cab < CABINETS.length && !used.has(before.cab)) {
-      machines.set(entry.id, before.cab);
-      used.add(before.cab);
-    }
-  }
-  const waiting = cast
-    .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => entry.mood !== "viewed" && !machines.has(entry.id))
-    .sort((a, b) => (MOOD_PRIORITY[a.entry.mood] ?? 4) - (MOOD_PRIORITY[b.entry.mood] ?? 4) || a.index - b.index);
-  for (const { entry } of waiting) {
-    for (let index = 0; index < CABINETS.length; index += 1) {
-      if (used.has(index)) continue;
-      machines.set(entry.id, index);
-      used.add(index);
-      break;
-    }
-  }
-
-  const slept = new Set();
-  let watching = 0;
-  for (const entry of cast) {
-    const cab = machines.get(entry.id);
-    if (cab != null) {
-      assigned[entry.id] = {
-        kind: "cab", cab, x: CABINETS[cab].x, y: FOOT_Y[entry.mood] ?? FOOT_Y.working,
-        pose: POSE[entry.mood] ?? "back", mood: entry.mood,
-      };
-      continue;
-    }
-    if (entry.mood === "viewed") {
-      const before = previous?.[entry.id];
-      let spot = null;
-      if (before?.kind === "viewed" && !slept.has(key(before))) spot = { x: before.x, y: before.y };
-      else {
-        const found = VIEWED_SPOTS.find(([x, y]) => !slept.has(`${x},${y}`));
-        if (found) spot = { x: found[0], y: found[1] };
-      }
-      if (!spot) spot = { x: 1290 + (slept.size % 3) * 60, y: 520 + Math.floor(slept.size / 3) * 40 };
-      slept.add(key(spot));
-      assigned[entry.id] = { kind: "viewed", x: spot.x, y: spot.y, pose: "sleep", mood: "viewed" };
-      continue;
-    }
-    const spot = spectatorSpot(watching);
-    watching += 1;
-    assigned[entry.id] = { kind: "spectator", x: spot.x, y: spot.y, pose: "back", mood: entry.mood };
-  }
+  entries.forEach(({ entry }, cab) => {
+    const cabinet = cabinetAt(cab);
+    assigned[entry.id] = {
+      kind: "cab", cab, x: cabinet.x, y: FOOT_Y[entry.mood] ?? FOOT_Y.working,
+      pose: POSE[entry.mood] ?? "back", mood: entry.mood,
+    };
+  });
   return assigned;
 }
 
-// The mood each machine shows on its screen; null is an empty machine.
+// The mood each cabinet shows on its screen; every cabinet holds one session.
 export function machineMoods(cast, spots) {
-  const moods = CABINETS.map(() => null);
-  for (const entry of cast) {
-    const spot = spots[entry.id];
-    if (spot?.kind === "cab") moods[spot.cab] = entry.mood;
-  }
-  return moods;
+  return machineSessions(cast, spots).map((entry) => entry?.mood ?? null);
 }
 
 // One line of a speech bubble: at most `limit` characters, cut at the last space in that
@@ -435,11 +394,11 @@ export function shownByFilter(filter, mood) {
 }
 
 // The scale and offset of a W × H stage that keeps the whole focus box in view: the smaller of
-// the width and height fits. A height fit leaves the design narrower than the block, so the design
+// the width and height fits. A height fit leaves the stage narrower than the block, so the stage
 // is centred and the leftover sides show FRAME_BG. A width fit leaves vertical room, and the focus
 // box sits VIEW.topFraction down from the top, or half the surplus when that is less. `left` and
-// `top` are the background's corners in the block.
-export function coverScale(W, H, frame = null) {
+// `top` are the stage's corners in the block, before any horizontal scroll.
+export function coverScale(W, H, frame = null, stageWidth = DESIGN.width) {
   const focusWidth = FOCUS.x1 - FOCUS.x0;
   const focusHeight = FOCUS.bottom - FOCUS.top;
   if (frame === "marquee") {
@@ -447,19 +406,64 @@ export function coverScale(W, H, frame = null) {
     // tops without the side bands a focus-box fit would leave.
     const scale = Math.max(1e-4, W / focusWidth);
     return {
-      scale, width: DESIGN.width * scale, height: DESIGN.height * scale,
+      scale, width: stageWidth * scale, height: DESIGN.height * scale,
       left: -MARQUEE.x0 * scale,
       top: MARQUEE.topFraction * H - MARQUEE.y * scale,
     };
   }
   const scale = Math.max(1e-4, Math.min(W / focusWidth, H / focusHeight));
   const spare = H - focusHeight * scale;
-  const centred = (W - DESIGN.width * scale) / 2;
+  const centred = (W - stageWidth * scale) / 2;
   return {
-    scale, width: DESIGN.width * scale, height: DESIGN.height * scale,
+    scale, width: stageWidth * scale, height: DESIGN.height * scale,
     left: Math.min(Math.max(centred, -FOCUS.x0 * scale), W - FOCUS.x1 * scale),
     top: Math.min(VIEW.topFraction * H, spare / 2) - FOCUS.top * scale,
   };
+}
+
+// Scrolling the marquee: the stage can be wider than the block, a line report is SCROLL_LINE px,
+// and the wheel's on-screen travel is divided by the scale so the row follows the pointer.
+export const SCROLL_LINE = 60;
+export const SCROLL_PAD = 150;
+
+export function maxScroll(stageWidth, viewportW) {
+  return Math.max(0, stageWidth - (viewportW > 0 ? viewportW : 0));
+}
+
+export function clampScroll(offset, stageWidth, viewportW) {
+  const value = Number.isFinite(offset) ? offset : 0;
+  return Math.max(0, Math.min(maxScroll(stageWidth, viewportW), value));
+}
+
+// The device px a wheel or trackpad event asks to travel: sideways travel first, else the vertical
+// wheel, else the line report.
+export function scrollDeltaOf(event) {
+  const dx = Number(event?.delta?.x) || 0;
+  const dy = Number(event?.delta?.y) || 0;
+  const lx = Number(event?.delta_lines?.x) || 0;
+  const ly = Number(event?.delta_lines?.y) || 0;
+  if (dx !== 0 && Math.abs(dx) >= Math.abs(dy)) return dx;
+  if (dy !== 0) return dy;
+  if (lx !== 0 && Math.abs(lx) >= Math.abs(ly)) return lx * SCROLL_LINE;
+  if (ly !== 0) return ly * SCROLL_LINE;
+  return 0;
+}
+
+// The offset after a scroll event, clamped to the room past the stage's right edge.
+export function scrollOffset(offset, event, stageWidth, viewportW, scale = 1) {
+  const delta = scrollDeltaOf(event);
+  if (!delta) return clampScroll(offset, stageWidth, viewportW);
+  return clampScroll(offset - delta / (scale > 0 ? scale : 1), stageWidth, viewportW);
+}
+
+// How far to scroll so x is inside the viewport, leaving SCROLL_PAD of the neighbouring cabinets
+// visible; an x already inside that band leaves the offset alone.
+export function revealOffset(offset, x, stageWidth, viewportW, pad = SCROLL_PAD) {
+  const left = offset + pad;
+  const right = offset + viewportW - pad;
+  if (x < left) return clampScroll(x - pad, stageWidth, viewportW);
+  if (x > right) return clampScroll(x - viewportW + pad, stageWidth, viewportW);
+  return clampScroll(offset, stageWidth, viewportW);
 }
 
 // Dragging a character about the floor: how far the pointer must travel before the press
@@ -473,16 +477,17 @@ export function isDrag(fromWin, nowWin) {
   return Boolean(fromWin && nowWin) && Math.hypot(nowWin.x - fromWin.x, nowWin.y - fromWin.y) >= DRAG_SLOP;
 }
 
-// The carried foot point in design px: the press point plus the pointer's travel divided by
-// the stage scale, kept inside the design.
-export function dragPoint(startDesign, fromWin, nowWin, scale) {
+// The carried foot point in design px: the press point plus the pointer's travel divided by the
+// stage scale, kept inside the design. The stage scrolls as a whole, so the offset never enters
+// this: the pointer's travel is the same however far the row has scrolled.
+export function dragPoint(startDesign, fromWin, nowWin, scale, maxX = DESIGN.width) {
   const s = scale || 1;
   return {
-    x: clamp(startDesign.x + (nowWin.x - fromWin.x) / s, [0, DESIGN.width]),
+    x: clamp(startDesign.x + (nowWin.x - fromWin.x) / s, [0, maxX]),
     y: clamp(startDesign.y + (nowWin.y - fromWin.y) / s, [0, DESIGN.height]),
   };
 }
 
-export function dropPoint(p) {
-  return { x: clamp(p.x, [DROP_AREA.left, DROP_AREA.right]), y: clamp(p.y, [DROP_AREA.top, DROP_AREA.bottom]) };
+export function dropPoint(p, maxX = DROP_AREA.right) {
+  return { x: clamp(p.x, [DROP_AREA.left, maxX]), y: clamp(p.y, [DROP_AREA.top, DROP_AREA.bottom]) };
 }
