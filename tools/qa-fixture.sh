@@ -66,6 +66,8 @@ else
 fi
 cp "$SESSIONS" "$SESSIONS_COPY"
 
+# install.sh may have linked scan.sh to the shared home; writing the fixture through the link would replace that copy.
+[ -L "$SCAN" ] && rm -f "$SCAN"
 cat > "$SCAN" <<'FIXTURE'
 #!/bin/sh
 # qa-fixture scan: the demo cast from qa-sessions.json beside this script, with terminal ids from
@@ -140,6 +142,8 @@ def row_of(item, index, at):
         "where": {"kind": "herdr-app", "paneId": None, "socket": None, "handle": None,
                   "terminalId": spot.get("terminalId")},
         "agent": "claude",
+        "account": "default",
+        "repo": None,
     }
 
 

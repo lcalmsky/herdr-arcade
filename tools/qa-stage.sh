@@ -400,6 +400,9 @@ if os.path.exists(cca_target) and not os.path.exists(cca_orig):
     if not already_fake:
         shutil.copyfile(cca_target, cca_orig)
         os.chmod(cca_orig, 0o755)
+# install.sh may have linked cca to the shared home; copyfile would write the fake through that link.
+if os.path.islink(cca_target):
+    os.remove(cca_target)
 shutil.copyfile(os.path.join(repo, "tools", "qa-cca.sh"), cca_target)
 os.chmod(cca_target, 0o755)
 print("installed the CREDIT accounts fake at " + cca_target)

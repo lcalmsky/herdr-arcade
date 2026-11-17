@@ -16,9 +16,9 @@ const ORIGINAL = "#!/bin/sh\necho original\n";
 
 // The real scan.sh's fields, so the fixture cannot drift from the format the strip parses.
 const SESSION_FIELDS = [
-  "agent", "agentName", "background", "completed", "currentAction", "customTitle", "cwd", "deadhd", "identity",
+  "account", "agent", "agentName", "background", "completed", "currentAction", "customTitle", "cwd", "deadhd", "identity",
   "jobId", "kind", "lastAnswer", "lastMeaningfulAt", "lastPrompt", "lastSentence", "lastToolAt", "lastToolName",
-  "location", "name", "pages", "parkedJobId", "pid", "pr", "sessionId", "startedAt", "status", "statusUpdatedAt",
+  "location", "name", "pages", "parkedJobId", "pid", "pr", "repo", "sessionId", "startedAt", "status", "statusUpdatedAt",
   "t", "updatedAt", "waitingFor", "where",
 ];
 const META_FIELDS = ["error", "objectives", "pages", "roots", "t", "unreadablePages", "updatedAt"];

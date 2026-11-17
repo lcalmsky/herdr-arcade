@@ -32,7 +32,9 @@ function sandbox(extraEnv = {}) {
   const quiet = stub("quiet.sh", "");
   const env = {
     ...process.env, HOME: home, TMPDIR: temp, CLAUDE_CONFIG_DIR: "",
-    PULSE_PS: quiet, PULSE_LSOF: quiet, ...extraEnv,
+    PULSE_PS: quiet, PULSE_LSOF: quiet,
+    HERDR_THREAD_SESSIONS: join(home, ".claude/state/threads/sessions"),
+    HERDR_GOALS_FILE: join(home, ".claude/state/goals/active-programs.json"), ...extraEnv,
   };
   const call = (expression) => JSON.parse(execFileSync("python3", ["-c", `${PYTHON}\nprint(json.dumps(${expression}, ensure_ascii=False))`], { env, encoding: "utf8" }));
   const scan = () => execFileSync("sh", [SCAN.pathname], { env, encoding: "utf8" }).trim().split("\n").map((line) => JSON.parse(line));
@@ -63,13 +65,13 @@ const codexRollout = (box, records, day = "2999/12/31") => box.put(
 test("a garbled rolling-delivery file gives no objectives and never stops the scan", () => {
   const box = sandbox();
   try {
-    box.put(".claude/state/rolling-delivery/active-programs.json", { programs: [1, "x", null,
+    box.put(".claude/state/goals/active-programs.json", { programs: [1, "x", null,
       { objective: "ABC-1313 고도화 에픽: 부재 판단을 정한다 (PRD prd/x.md 의 P0). 조사 후 진행", updated_at: "2026-11-06" },
       { objective: "ABC-1313 예전 목표", updated_at: "2026-11-01" }] });
     assert.deepEqual(box.call("rd_objectives()"), { "ABC-1313": "고도화 에픽: 부재 판단을 정한다" });
-    box.put(".claude/state/rolling-delivery/active-programs.json", { programs: { a: 1 } });
+    box.put(".claude/state/goals/active-programs.json", { programs: { a: 1 } });
     assert.deepEqual(box.call("rd_objectives()"), {});
-    box.put(".claude/state/rolling-delivery/active-programs.json", "{not json");
+    box.put(".claude/state/goals/active-programs.json", "{not json");
     assert.deepEqual(box.call("rd_objectives()"), {});
     const meta = box.scan().at(-1);
     assert.equal(meta.t, "meta");
@@ -102,14 +104,14 @@ test("the identity takes the first real prompt, the handoff H1 it names, its rou
   }
 });
 
-test("a Slack session reads its topic from thread memory, else the received event, and survives garbled state", () => {
+test("a thread session reads its topic from thread memory, else the received event, and emits it only under identity.thread", () => {
   const box = sandbox();
   try {
-    const state = ".claude/state/bot-sessions";
+    const state = ".claude/state/threads";
     const withMemory = join(box.home, state, "sessions/C000TEST-1793691052_993259");
     box.put(`${state}/threads/C000TEST-1793691052_993259.json`, { lane: "prod", session: "garbled" });
     box.put(`${state}/memory/threads/C000TEST-1793691052.993259.md`, "# 기억\n- 질문: 블루문 오픈 알림 언제 가?\n");
-    assert.deepEqual(box.call(`slack_topic(${JSON.stringify(withMemory)})`),
+    assert.deepEqual(box.call(`thread_topic(${JSON.stringify(withMemory)})`),
       { channel: "C000TEST", threadAt: 1793691052000, lane: "prod", label: null, topic: "블루문 오픈 알림 언제 가?" });
 
     const fromEvent = join(box.home, state, "sessions/C000EVENT-1793000000_111111");
@@ -117,23 +119,32 @@ test("a Slack session reads its topic from thread memory, else the received even
       '["received", "1793000000.111111"]',
       JSON.stringify({ type: "received", thread_ts: "1793000000.111111", text: "재입고 알림 신청이 안 돼요" }),
     ].join("\n"));
-    assert.equal(box.call(`slack_topic(${JSON.stringify(fromEvent)})`).topic, "재입고 알림 신청이 안 돼요");
-    assert.equal(box.call(`slack_topic("/x/not-a-thread")`), null);
+    assert.equal(box.call(`thread_topic(${JSON.stringify(fromEvent)})`).topic, "재입고 알림 신청이 안 돼요");
+    assert.equal(box.call(`thread_topic("/x/not-a-thread")`), null);
+
+    const sessionId = "thread-session-1";
+    box.put(".claude/sessions/1.json", {
+      pid: process.pid, sessionId, cwd: withMemory, entrypoint: "cli", status: "idle",
+    });
+    box.put(`.claude/projects/x/${sessionId}.jsonl`, user("스레드 답변해 줘"));
+    const [session] = sessionsOf(box.scan());
+    assert.equal(session.identity.thread.topic, "블루문 오픈 알림 언제 가?");
+    assert.equal("slack" in session.identity, false, "the old key is gone");
   } finally {
     box.done();
   }
 });
 
-test("the identity cache is final only once the prompt and any Slack topic are known", () => {
+test("the identity cache is final only once the prompt and any thread topic are known", () => {
   const box = sandbox();
   try {
     const transcript = box.put("t/mv.jsonl", user("스레드 답변해 줘"));
-    const cwd = join(box.home, ".claude/state/bot-sessions/sessions/C000TEST-1790000000_000001");
-    const cache = join(box.temp, "herdr-pulse", "identity-mv1.json");
+    const cwd = join(box.home, ".claude/state/threads/sessions/C000TEST-1790000000_000001");
+    const cache = join(box.temp, "herdr-pulse", "identity-v2-mv1.json");
     box.call(`session_identity(${JSON.stringify(transcript)}, "mv1", ${JSON.stringify(cwd)})`);
     assert.equal(JSON.parse(readFileSync(cache, "utf8")).final, false, "no topic yet, so the next scan reads again");
 
-    box.put(".claude/state/bot-sessions/memory/threads/C000TEST-1790000000.000001.md", "- 원글: 쿠폰이 안 보여요\n");
+    box.put(".claude/state/threads/memory/threads/C000TEST-1790000000.000001.md", "- 원글: 쿠폰이 안 보여요\n");
     box.call(`session_identity(${JSON.stringify(transcript)}, "mv1", ${JSON.stringify(cwd)})`);
     assert.equal(JSON.parse(readFileSync(cache, "utf8")).final, true);
 

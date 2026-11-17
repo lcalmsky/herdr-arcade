@@ -572,9 +572,9 @@ test("the topic comes from the handoff, the Slack thread, a pasted brief or the 
   assert.equal(topicOf({ handoff: "ABC-1435 AI 상담 끄기 이유 묻기 (rolling-delivery)" }, "ABC-1435"), "AI 상담 끄기 이유 묻기");
   assert.equal(topicOf({ handoff: "ABC-1256 해결 예상 루프 사람 퇴장(2026-11-09 05:00 자동 excluded) 실행 핸드오프" }, "ABC-1256"),
     "해결 예상 루프 사람 퇴장");
-  assert.equal(topicOf({ slack: { topic: "블루문 사장님 복지몰(example.com) 오픈베타 오픈 알림. OCR job c4f5e194, 실패 93건." } }),
+  assert.equal(topicOf({ thread: { topic: "블루문 사장님 복지몰(example.com) 오픈베타 오픈 알림. OCR job c4f5e194, 실패 93건." } }),
     "블루문 사장님 복지몰(example.com) 오픈베타 오픈 알림.");
-  assert.equal(topicOf({ slack: { topic: "<@U0B6SB84B17> 대시보드 링크 사내망에서만 접속할 수 있게 수정해서 운영까지 배포해줘." } }),
+  assert.equal(topicOf({ thread: { topic: "<@U0B6SB84B17> 대시보드 링크 사내망에서만 접속할 수 있게 수정해서 운영까지 배포해줘." } }),
     "대시보드 링크 사내망에서만 접속할 수 있게 수정해서 운영까지 배포해줘.");
   assert.equal(topicOf({ paste: "일본어 회화 튜터", firstPrompt: "<pasted_content> # 일본어 회화 튜터" }), "일본어 회화 튜터");
   assert.equal(topicOf({ firstPrompt: "[Image #1] 이거 `/relay` 스킬 때문에 앞 문장이 항상 경로야. 고쳐 줘" }), "/relay 스킬 때문에 앞 문장이 항상 경로야.");
@@ -634,8 +634,8 @@ test("the band shows the key with its round and PR, Slack with its lane, and not
   const v = view([
     session("j", "busy", 3, { cwd: "/Users/dev/git-repo/api-cserver-ABC-1435", identity: { round: 5, handoff: "ABC-1435 AI 상담 끄기 이유 묻기" },
       pr: { number: 9330, url: "https://github.com/example-org/web/pull/9330" } }),
-    session("m", "idle", 3, { cwd: "/x/bot-sessions/sessions/C000TEST-1793691052_993259",
-      identity: { slack: { channel: "C000TEST", lane: "prod", topic: "블루문 오픈 알림." } },
+    session("m", "idle", 3, { cwd: "/x/threads/sessions/C000TEST-1793691052_993259",
+      identity: { thread: { channel: "C000TEST", lane: "prod", topic: "블루문 오픈 알림." } },
       pr: { number: 9401, url: "https://github.com/example-org/web/pull/9401" } }),
     session("h", "busy", 3, { cwd: "/Users/dev/git-repo/herdr-arcade-cards", pr: { number: 7, url: "https://github.com/lcalmsky/herdr-arcade-cards/pull/7" } }),
   ]);
@@ -655,8 +655,8 @@ test("a right-click opens the card's links in order: ticket, pull requests, Slac
   const { linksOf, slackThreadOf, linksMenuHeight, LINKS_W } = await import("../mods/arcade-cards/main.js");
   const v = view([
     session("j", "busy", 3, { cwd: "/Users/dev/git-repo/api-cserver-ABC-1435", pr: { number: 9330, url: "https://github.com/example-org/web/pull/9330" } }),
-    session("m", "idle", 3, { cwd: "/x/bot-sessions/sessions/C000TEST-1793691052_993259",
-      identity: { slack: { channel: "C000TEST", lane: "prod", topic: "블루문 오픈 알림." } } }),
+    session("m", "idle", 3, { cwd: "/x/threads/sessions/C000TEST-1793691052_993259",
+      identity: { thread: { channel: "C000TEST", lane: "prod", topic: "블루문 오픈 알림." } } }),
     session("h", "busy", 3, { cwd: "/Users/dev/git-repo/herdr-arcade-cards" }),
   ]);
   v.knownRepos = ["api", "web", "docs"];
@@ -1020,8 +1020,8 @@ test("the rail heads every repository with its name and opens Slack into thread 
     { space: space("s2", "api-cserver-ABC-1435"), mine: [], repo: api },
     { space: space("s3", "herdr-arcade-cards"), mine: [], repo: { common: "/Users/dev/git-repo/herdr-arcade-cards/.git", base: true } },
     { space: space("s4", "resumed", [{ id: "tb1", name: "mv-1791252016", active: true }, { id: "tb2", name: "mv-1793691052", active: false }]),
-      mine: [{ address: "t90", cwd: "/Users/dev/.claude/state/bot-sessions/sessions/C000TEST-1791252016_169809" },
-        { address: "t92", cwd: "/Users/dev/.claude/state/bot-sessions/sessions/C000TEST-1793691052_993259" }], repo: null },
+      mine: [{ address: "t90", cwd: "/Users/dev/.claude/state/threads/sessions/C000TEST-1791252016_169809" },
+        { address: "t92", cwd: "/Users/dev/.claude/state/threads/sessions/C000TEST-1793691052_993259" }], repo: null },
   ];
   const list = [
     { address: "t18z", space: "s1", tab: "s1-tab", status: "done" },
@@ -1031,6 +1031,7 @@ test("the rail heads every repository with its name and opens Slack into thread 
   ];
   const places = {
     t18z: { key: "ABC-1408", rest: "ai" }, t18k: { key: "ABC-1435", rest: "cserver" },
+    t90: { key: null, rest: null, topic: null, slack: true },
     t92: { key: null, rest: null, topic: "블루문 사장님 복지몰 오픈베타 오픈 알림.", slack: true },
   };
   const groups = railTree(rows, list, places);

@@ -30,7 +30,6 @@ function spaceKeyRe(prefixes = []) {
   const any = list.map((prefix) => prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   return new RegExp(`(?:^|[^A-Za-z0-9])((?:${any})-\\d{1,5})(?![0-9])`, "i");
 }
-const SLACK_SESSIONS = "/.claude/state/bot-sessions/sessions/";
 const KEY_DIGITS = /^[A-Z][A-Z0-9]*-(\d+)$/;
 
 function charFor(key) {
@@ -145,8 +144,7 @@ export function railTree(rows, list, places = {}, ticketPrefixes = []) {
   rows.forEach((row, index) => {
     const s = row.space;
     const here = list.filter((a) => a.space === s.id);
-    const slack = here.length > 0 && here.every((a) => places[a.address]?.slack
-      || String(cwdOf(row.mine.find((t) => t.address === a.address)) ?? "").includes(SLACK_SESSIONS));
+    const slack = here.length > 0 && here.every((a) => places[a.address]?.slack);
     if (slack) {
       const tabs = s.tabs.map((tab) => ({ tab, crew: here.filter((a) => a.tab === tab.id) })).filter((t) => t.crew.length);
       groups.push({ head: "Slack", kind: "slack", rows: tabs.map(({ tab, crew }) => {

@@ -4,12 +4,31 @@
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 HOME_DIR=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
+SHARED=${HERDR_SHARED:-$HOME/git-repo/herdr-shared}
+SHARED_HOME=${HERDR_SHARED_HOME:-$HOME/.local/share/herdr-shared}
 for mod in arcade-cards arcade-scene arcade-rail arcade-accounts arcade-tabs arcade-pane arcade-editor; do
   mkdir -p "$HOME_DIR/mods/$mod"
+  # The copy below must write real files: a link into the shared home from the last install
+  # would be written through. The link step at the end puts the links back.
+  find "$HOME_DIR/mods/$mod" -maxdepth 1 -type l -lname "$SHARED_HOME/*" -exec rm -f {} +
   cp -R "$REPO/mods/$mod/." "$HOME_DIR/mods/$mod/"
 done
 chmod +x "$HOME_DIR/mods/arcade-accounts/cca" "$HOME_DIR/mods/arcade-accounts/usage-tap.sh"
 chmod +x "$HOME_DIR/mods/arcade-editor/hv" "$HOME_DIR/mods/arcade-editor/hv-open"
+# With herdr-shared installed, the runtime files it carries link to its shared home; otherwise the
+# copies above stay and a public install still works.
+REPO_REAL=$(cd "$REPO" && pwd -P)
+if [ -f "$SHARED/tools/link-installed.sh" ] && [ -d "$SHARED_HOME" ]; then
+  installed=
+  for mod in arcade-accounts arcade-cards arcade-editor; do
+    dir=$(cd "$HOME_DIR/mods/$mod" 2>/dev/null && pwd -P) || continue
+    case "$dir" in
+      "$REPO_REAL"|"$REPO_REAL"/*) continue ;;
+    esac
+    installed="$installed $HOME_DIR/mods/$mod"
+  done
+  [ -z "$installed" ] || sh "$SHARED/tools/link-installed.sh" $installed
+fi
 mkdir -p "$HOME_DIR/layouts" "$HOME_DIR/themes"
 cp "$REPO/layouts/arcade.json" "$REPO/layouts/arcade.png" "$HOME_DIR/layouts/"
 cp "$REPO/themes/arcade.json" "$HOME_DIR/themes/"
