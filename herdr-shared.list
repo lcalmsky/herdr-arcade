@@ -1,0 +1,5 @@
+# herdr-shared groups vendored into this repo; see vendor/herdr-shared/README.md
+accounts mods/arcade-accounts
+scan mods/arcade-cards
+editor mods/arcade-editor
+herdr-open tools/herdr-open

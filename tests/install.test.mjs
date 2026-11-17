@@ -4,13 +4,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const INSTALL = join(ROOT, "tools/install.sh");
-const SHARED = process.env.HERDR_SHARED || join(homedir(), "git-repo", "herdr-shared");
+const SHARED = process.env.HERDR_SHARED || join(ROOT, "vendor", "herdr-shared");
 const SKIP = existsSync(join(SHARED, "tools/install.sh"))
   ? false
   : `herdr-shared is not checked out at ${SHARED}`;

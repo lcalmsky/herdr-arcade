@@ -4,7 +4,7 @@
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 HOME_DIR=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
-SHARED=${HERDR_SHARED:-$HOME/git-repo/herdr-shared}
+SHARED=${HERDR_SHARED:-$REPO/vendor/herdr-shared}
 SHARED_HOME=${HERDR_SHARED_HOME:-$HOME/.local/share/herdr-shared}
 for mod in arcade-cards arcade-scene arcade-rail arcade-accounts arcade-tabs arcade-pane arcade-editor; do
   mkdir -p "$HOME_DIR/mods/$mod"
