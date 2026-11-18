@@ -8,7 +8,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, agents, terminals, panes, exec, run, openOverlay, props, shared } from "herdr";
+import { spaces, agents, terminals, panes, exec, run, openOverlay, props, shared, checking } from "herdr";
 
 const INK = { rail: "#251b47", card: "#251b47", raised: "#191035", shown: "#31265a", hover: "#31265a", line: "#483e74", shownLine: "#f9d54488", sep: "#483e74", t1: "#f1f0ff", t2: "#d0cdea", amber: "#f9d544", focus: "#f9d544" };
 const FACE = { blocked: "#ff41b4", working: "#3adaf2", done: "#f9d544", idle: "#483e74" };
@@ -203,6 +203,8 @@ export default class ArcadeRail extends View {
     // The last answers git gave are kept, so a launch draws its repository headings at once.
     this.repos = loadRepos();
     this.reading = false;
+    // herdr-app check runs init for real: draw the saved repositories without running git.
+    if (checking()) return;
     cx.timer.every(REPO_MS, (cx) => this.readRepos(cx));
     cx.timer.every(30000, (cx) => cx.notify());
     cx.timer.every(FOCUS_WATCH_MS, (cx) => this.watchFocus(cx));
@@ -225,7 +227,8 @@ export default class ArcadeRail extends View {
   // SpaceInfo.folder is where new terminals start, not where they are, so the repo comes from where a
   // terminal's program runs now (cwdOf).
   readRepos(cx) {
-    if (this.reading) return;
+    // render asks too when a new folder shows up, so the check guard sits here as well as in init.
+    if (this.reading || checking()) return;
     this.reading = true;
     const folders = [...new Set(terminals().map(cwdOf).filter(Boolean))];
     cx.spawn(async (later) => {

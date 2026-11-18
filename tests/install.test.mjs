@@ -79,3 +79,32 @@ test("a second install writes real files instead of writing through the shared l
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// The layout and keys merges run python3: without it the install used to stop halfway, mods and
+// layout copied but no keys merged and no mod checked.
+test("without python3 the install stops before copying anything and says why", () => {
+  const root = mkdtempSync(join(tmpdir(), "arcade-install-nopy-"));
+  try {
+    const app = join(root, "app");
+    const bin = join(root, "bin");
+    mkdirSync(bin, { recursive: true });
+    for (const tool of ["dirname", "mkdir", "find", "cp", "chmod", "rm"]) {
+      const at = execFileSync("/bin/sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim();
+      writeFileSync(join(bin, tool), `#!/bin/sh\nexec ${at} "$@"\n`);
+      chmodSync(join(bin, tool), 0o755);
+    }
+    let failure = null;
+    try {
+      execFileSync("/bin/sh", [INSTALL], { env: { PATH: bin, HOME: root, HERDR_APP_HOME: app }, stdio: "pipe" });
+    } catch (error) {
+      failure = error;
+    }
+    assert.ok(failure, "the install fails");
+    assert.equal(failure.status, 1);
+    assert.match(String(failure.stderr), /python3 is required/);
+    assert.equal(existsSync(join(app, "mods")), false, "no mod copied");
+    assert.equal(existsSync(join(app, "layouts", "arcade.json")), false, "no layout copied");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

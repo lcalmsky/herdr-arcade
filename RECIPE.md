@@ -162,7 +162,7 @@ settings button (`app.settings`).
 [pid]` every 30 s for the focused Claude Code pane and every account under
 `~/.claude-accounts`; `cardWindows` gives each account's two windows (5h/7d, or 7d/Fable on an
 Ultra plan), and `windowText` formats them. A row click opens the accounts popup, the same overlay
-as `mod.open:arcade-accounts`; the popup can add accounts, add models and resume a session under
+`ctrl-shift-a` (`arcade-accounts.menu`) opens and closes; the popup can add accounts, add models and resume a session under
 another account. The shell work and the account files live in `cca`; it also asks the Anthropic
 usage endpoint at most every 5 minutes for the Fable weekly window.
 
@@ -171,7 +171,7 @@ remembers each space's side panel in localStorage, and runs the tab, layout and 
 **arcade-pane** is the 30 px CRT header. **arcade-editor** is not placed by this layout.
 
 **Keys** (`layouts/arcade.keys.json`, merged into `keys.json` by the installer):
-`ctrl-alt-p` → `arcade-cards.toggle`, `ctrl-shift-a` → `mod.open:arcade-accounts`,
+`ctrl-alt-p` → `arcade-cards.toggle`, `ctrl-shift-a` → `arcade-accounts.menu`,
 `cmd-=`/`cmd-+` → `arcade-cards.font_in`, `cmd--` → `font_out`, `cmd-0` → `font_reset`,
 `cmd-[` → `back`, `cmd-]` → `forward`.
 

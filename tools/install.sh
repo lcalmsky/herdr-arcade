@@ -6,6 +6,11 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 HOME_DIR=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
 SHARED=${HERDR_SHARED:-$REPO/vendor/herdr-shared}
 SHARED_HOME=${HERDR_SHARED_HOME:-$HOME/.local/share/herdr-shared}
+# The layout and keys merges below and the cards' scan.sh run python3: stop before copying anything.
+command -v python3 >/dev/null 2>&1 || {
+  printf 'install.sh: python3 is required (the layout and key merges and mods/arcade-cards/scan.sh use it)\n' >&2
+  exit 1
+}
 for mod in arcade-cards arcade-scene arcade-rail arcade-accounts arcade-tabs arcade-pane arcade-editor; do
   mkdir -p "$HOME_DIR/mods/$mod"
   # The copy below must write real files: a link into the shared home from the last install

@@ -10,6 +10,7 @@ export const setShared = (name, value) => { const s = state(); s.shared = { ...(
 export const run = (...args) => { globalThis.herdrRuns?.push(args); };
 export const exec = async (...args) => {
   globalThis.herdrExec?.push(args);
+  if (globalThis.herdrExecFail) throw new Error(globalThis.herdrExecFail);
   return { code: 0, stdout: "", stderr: "" };
 };
 export const appHome = () => "/tmp";
@@ -25,3 +26,4 @@ export const theme = () => state().theme ?? {};
 export const layout = () => state().layout ?? null;
 export const window = () => state().window ?? null;
 export const home = () => state().home ?? "/Users/dev";
+export const checking = () => globalThis.herdrChecking === true;

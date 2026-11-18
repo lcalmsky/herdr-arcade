@@ -703,7 +703,9 @@ test("the links popup opens http links through the system, local pages through o
   const opened = [];
   const copied = [];
   let stopped = 0;
-  const cx = { open_url: (url) => opened.push(url), write_to_clipboard: (text) => copied.push(text), stop_propagation: () => { stopped += 1; }, notify() {} };
+  const tasks = [];
+  const cx = { open_url: (url) => opened.push(url), write_to_clipboard: (text) => copied.push(text), stop_propagation: () => { stopped += 1; }, notify() {},
+    spawn(fn) { tasks.push(fn(cx)); } };
   const v = new ArcadeCards();
   Object.assign(v, { role: "links", active: 0 });
   const links = [
@@ -714,8 +716,13 @@ test("the links popup opens http links through the system, local pages through o
   v.linksKey("p", links, cx);
   assert.deepEqual(opened, ["https://github.com/a/b/pull/1"]);
   assert.deepEqual(globalThis.herdrClosed, ["o9"], "opening a link closes the menu");
+  globalThis.herdrExec = [];
   v.linksKey("g", links, cx);
+  await Promise.all(tasks);
   assert.equal(opened.length, 1, "a local page is not handed to open_url");
+  assert.deepEqual(globalThis.herdrExec, [["open", ["/tmp/page.html"]]], "it goes to open");
+  assert.deepEqual(globalThis.herdrClosed, ["o9", "o9"], "and the menu closes once open answers");
+  globalThis.herdrExec = undefined;
   v.linksKey("up", links, cx);
   assert.equal(v.active, 2, "up wraps to the last row");
   v.linksKey("down", links, cx);
@@ -2062,4 +2069,96 @@ test("the control panel renders the selected session's info area, and hovering a
   seen.length = 0;
   assert.doesNotThrow(() => v.render(cx));
   assert.deepEqual(seen, ["w"], "the info area follows the selected session");
+});
+
+test("a local page open fails: the menu stays up and says so on the page's row, with no unhandled rejection", async () => {
+  globalThis.herdrState = { props: { role: "links", overlay: "o9" } };
+  globalThis.herdrClosed = [];
+  globalThis.herdrExecFail = "open: command not found";
+  const tasks = [];
+  let notified = 0;
+  const cx = { notify() { notified += 1; }, spawn(fn) { tasks.push(fn(cx)); } };
+  try {
+    const v = new ArcadeCards();
+    Object.assign(v, { role: "links", active: 0 });
+    v.openLink({ kind: "page", url: "/tmp/page.html" }, cx);
+    await Promise.all(tasks);
+    assert.deepEqual(globalThis.herdrClosed, [], "the menu is not closed over a page that did not open");
+    assert.deepEqual(v.linkError, { url: "/tmp/page.html", text: "Could not open the page" });
+    assert.ok(notified > 0, "the row redraws with the error");
+    assert.doesNotThrow(() => v.linksMenu(), "the menu renders the failed row");
+  } finally {
+    globalThis.herdrExecFail = undefined;
+    globalThis.herdrClosed = undefined;
+    globalThis.herdrState = {};
+  }
+});
+
+test("the checklist row is left out for another agent's session: its prompt names a Claude Code skill", () => {
+  const state = { terminals: [{ address: "t1b1", state: "live", cwd: "/repo/cards" }] };
+  const card = (id, extra = {}) => session(id, "busy", 3, {
+    cwd: "/repo/cards", where: { kind: "herdr-app", terminalId: "t1b1" }, ...extra,
+  });
+  const v = view([card("plain"), card("claude", { agent: "claude" }), card("codex", { agent: "codex" })], state);
+  const open = (key) => {
+    globalThis.herdrOverlays = [];
+    v.openLinks(key, { notify() {} });
+    return globalThis.herdrOverlays[0];
+  };
+  try {
+    assert.equal(open("card-plain").props.showChecklist, true, "a session scan.sh did not tag is Claude Code's");
+    assert.equal(open("card-claude").props.showChecklist, true);
+    assert.equal(open("card-codex").props.showChecklist, false, "a Codex session gets no Show checklist row");
+  } finally {
+    globalThis.herdrOverlays = undefined;
+  }
+});
+
+// The panel is the root column's last row in layouts/arcade.json; the terminal is in the row above it.
+test("the panel hands the keyboard up to the terminal: ctrl-alt-p, the last Esc and the toggle command", () => {
+  const layout = JSON.parse(readFileSync(new URL("../layouts/arcade.json", import.meta.url), "utf8"));
+  const root = layout.root ?? layout;
+  const last = root.children.at(-1);
+  assert.equal(root.type, "column");
+  assert.deepEqual([last.id, last.content?.mod, last.content?.props?.role], ["panel", "arcade-cards", "panel"],
+    "the panel is the bottom row, so nothing is below it");
+  const v = view([session("a", "waiting", 3)]);
+  Object.assign(v, { role: "panel", scroll: { scroll_to_item() {} } });
+  globalThis.herdrRuns = [];
+  try {
+    press(v, "p", true, false, true);
+    assert.equal(v.selectedItem(v.viewData()), null, "nothing to clear first");
+    press(v, "escape");
+    assert.deepEqual(globalThis.herdrRuns, [["pane.go", { direction: "up" }], ["pane.go", { direction: "up" }]]);
+    assert.equal(v.handBack(), "up", "the toggle command uses the same direction");
+    v.role = "cards";
+    assert.equal(v.handBack(), "down", "the strip of the cards role still hands it down");
+  } finally {
+    globalThis.herdrRuns = undefined;
+  }
+});
+
+test("under herdr-app check the panel renders without running scan.sh or starting its loops", () => {
+  const started = { spawn: 0, every: 0, after: 0 };
+  const cx = {
+    timer: { every() { started.every += 1; return { cancel() {} }; }, after() { started.after += 1; return { cancel() {} }; } },
+    spawn() { started.spawn += 1; return new Promise(() => {}); },
+    notify() {},
+    focus_handle() { return { focus() {}, is_focused: () => false, release() { return true; } }; },
+  };
+  globalThis.herdrChecking = true;
+  globalThis.herdrExec = [];
+  globalThis.herdrState = { props: { role: "panel" }, terminals: [], agents: [], panes: [], spaces: [] };
+  try {
+    const v = new ArcadeCards();
+    v.init({}, cx);
+    v.poll(cx);
+    assert.deepEqual(started, { spawn: 0, every: 0, after: 0 });
+    assert.deepEqual(globalThis.herdrExec, []);
+    assert.doesNotThrow(() => v.render(cx));
+  } finally {
+    globalThis.herdrChecking = undefined;
+    globalThis.herdrExec = undefined;
+    globalThis.herdrState = {};
+  }
 });

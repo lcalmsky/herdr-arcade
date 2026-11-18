@@ -1,6 +1,6 @@
 {
   "ctrl-alt-p": "arcade-cards.toggle",
-  "ctrl-shift-a": "mod.open:arcade-accounts",
+  "ctrl-shift-a": "arcade-accounts.menu",
   "cmd-=": "arcade-cards.font_in",
   "cmd-+": "arcade-cards.font_in",
   "cmd--": "arcade-cards.font_out",

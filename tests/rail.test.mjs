@@ -79,3 +79,28 @@ test("the repositories git named last time are there at launch, before any read 
     globalThis.herdrState = undefined;
   }
 });
+
+test("under herdr-app check the board renders the saved repositories without running git", () => {
+  const started = { spawn: 0, every: 0, after: 0 };
+  const cx = {
+    timer: { every() { started.every += 1; return { cancel() {} }; }, after() { started.after += 1; return { cancel() {} }; } },
+    spawn() { started.spawn += 1; return new Promise(() => {}); },
+    notify() {},
+    focus_handle() { return { focus() {}, is_focused: () => false, release() { return true; } }; },
+  };
+  globalThis.herdrChecking = true;
+  globalThis.herdrExec = [];
+  globalThis.herdrState = { terminals: [{ address: "t1", cwd: "/work/api/one" }], agents: [], panes: [], spaces: [space("s1", "one")],
+    props: { variant: "board" } };
+  try {
+    const view = new ArcadeRail();
+    view.init({}, cx);
+    assert.doesNotThrow(() => view.render(cx));
+    assert.deepEqual(started, { spawn: 0, every: 0, after: 0 }, "no git read and no timers");
+    assert.deepEqual(globalThis.herdrExec, []);
+  } finally {
+    globalThis.herdrChecking = undefined;
+    globalThis.herdrExec = undefined;
+    globalThis.herdrState = undefined;
+  }
+});

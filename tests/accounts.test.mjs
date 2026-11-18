@@ -7,7 +7,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ClaudeAccounts, { launchLine, launchFor, resumeArgs, resumeTemplates, accountChar, pocketWidth, pocketHeight, pocketBlock,
   POCKET_FULL_W, cardWindows, popupWindows, windowText, accountRowHeight, popupKey, errorText,
-  parsePorcelain, codexLaunch, menuHeight, creditHintShown, CREDIT_HINT_W } from "../mods/arcade-accounts/main.js";
+  parsePorcelain, codexLaunch, menuHeight, creditHintShown, CREDIT_HINT_W, MENU_KEY } from "../mods/arcade-accounts/main.js";
+import { shared, setShared } from "./stubs/herdr.mjs";
 import { fableOf } from "../mods/arcade-accounts/usage-api.mjs";
 import { emailOf, rateLimitsOf } from "../mods/arcade-accounts/codex-usage.mjs";
 import { defaultUsage, matchEnv, parseModels, parseUsage, slug, usageCommand } from "../mods/arcade-accounts/models.mjs";
@@ -75,7 +76,7 @@ test("continuing as a model puts its {id}-substituted template in the pane comma
     const session = { id: "12345678-1234-1234-1234-123456789abc", cwd: "/tmp/my work" };
     v.continueAs(model, session);
     assert.deepEqual(globalThis.herdrRuns, [["pane.split", { direction: "right", argv: ["sh", "-lc",
-      `cd '/tmp/my work' && ${launchFor(model, resumeArgs(model, session.id))}`] }]]);
+      `cd '/tmp/my work' || exit 1; ${launchFor(model, resumeArgs(model, session.id))}`] }]]);
     assert.match(globalThis.herdrRuns[0][1].argv[2], /--resume 12345678-1234-1234-1234-123456789abc --continue/);
   } finally {
     globalThis.herdrRuns = undefined;
@@ -853,5 +854,128 @@ test("a custom command may keep the id codex, since only account folder names ar
     assert.deepEqual(parseModels(text, { home }).map((m) => m.id), ["codex"]);
   } finally {
     rmSync(home, { recursive: true, force: true });
+  }
+});
+
+// The launch line starts with "unset CLAUDE_CONFIG_DIR;", so "cd X && <line>" ran the agent anyway
+// when cd failed. Each pane command runs here with a cwd that is gone and a stand-in for the agent.
+test("a resume whose folder is gone stops in the shell instead of starting the agent somewhere else", async () => {
+  const root = mkdtempSync(join(tmpdir(), "arcade-resume-"));
+  const tasks = [];
+  try {
+    const bin = join(root, "bin");
+    mkdirSync(bin);
+    const ran = join(root, "ran");
+    for (const name of ["claude", "fakeshell"]) {
+      writeFileSync(join(bin, name), `#!/bin/sh\necho "$PWD" >> '${ran}'\n`);
+      chmodSync(join(bin, name), 0o755);
+    }
+    const session = { id: "12345678-1234-1234-1234-123456789abc", cwd: join(root, "gone") };
+    const v = Object.create(ClaudeAccounts.prototype);
+    globalThis.herdrRuns = [];
+    v.continueAs({ name: "grok", kind: "model", command: "grok", resume: "--resume {id}" }, session);
+    v.continueAs("default", session);
+    v.continueAs("work", session);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(globalThis.herdrRuns.length, 3, "a model, the default account and another account");
+    for (const [, { argv }] of globalThis.herdrRuns) {
+      const r = spawnSync(argv[0], argv.slice(1), { cwd: root, env: { PATH: `${bin}:/usr/bin:/bin`, SHELL: join(bin, "fakeshell"), HOME: root } });
+      assert.equal(r.status, 1, `the shell stops: ${argv[2]}`);
+    }
+    assert.equal(existsSync(ran), false, "no agent started in another folder");
+  } finally {
+    globalThis.herdrRuns = undefined;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+const menuCx = () => {
+  const started = { spawn: 0, every: 0, after: 0 };
+  return {
+    started,
+    timer: { every() { started.every += 1; return { cancel() {} }; }, after() { started.after += 1; return { cancel() {} }; } },
+    spawn() { started.spawn += 1; return new Promise(() => {}); },
+    notify() {},
+    focus_handle() { return { focus() {}, is_focused: () => false, release() { return true; } }; },
+  };
+};
+
+test("ctrl-shift-a is the CREDIT row's menu, 460 px wide, and a second press closes the one it opened", () => {
+  const keys = JSON.parse(readFileSync(new URL("../layouts/arcade.keys.json", import.meta.url), "utf8"));
+  assert.equal(keys["ctrl-shift-a"], "arcade-accounts.menu", "not mod.open, which opens the mod.json size");
+  const manifest = JSON.parse(readFileSync(new URL("../mods/arcade-accounts/mod.json", import.meta.url), "utf8"));
+  assert.equal(manifest.overlay.width, 460, "mod.open from the palette gets the menu's width too");
+
+  globalThis.herdrState = { shared: { [MENU_KEY]: { overlay: "old" } }, props: { role: "board" } };
+  globalThis.herdrOverlays = [];
+  globalThis.herdrClosed = [];
+  try {
+    const board = new ClaudeAccounts();
+    board.init({}, menuCx());
+    assert.equal(shared(MENU_KEY), null, "an id a crash left behind is cleared, so the first press opens");
+
+    board.toggleMenu();
+    const [spec] = globalThis.herdrOverlays;
+    assert.deepEqual([spec.mod, spec.kind, spec.width, spec.props.role], ["arcade-accounts", "popup", 460, "menu"]);
+    assert.equal(spec.height, menuHeight({ claudeAccounts: [{ name: "default", email: "", usage: null }] }));
+
+    globalThis.herdrState.props = { ...spec.props, overlay: "o1" };
+    const menu = new ClaudeAccounts();
+    menu.init({}, menuCx());
+    assert.deepEqual(shared(MENU_KEY), { overlay: "o1" }, "the open menu leaves its id");
+
+    board.toggleMenu();
+    assert.deepEqual(globalThis.herdrClosed, ["o1"], "the second press closes it");
+    assert.equal(shared(MENU_KEY), null);
+    assert.equal(globalThis.herdrOverlays.length, 1, "and opens nothing");
+
+    setShared(MENU_KEY, { overlay: "o1" });
+    menu.close();
+    assert.equal(shared(MENU_KEY), null, "a menu closed by Esc or a click beside it takes its id with it");
+    setShared(MENU_KEY, { overlay: "o2" });
+    menu.close();
+    assert.deepEqual(shared(MENU_KEY), { overlay: "o2" }, "but leaves a newer menu's id alone");
+  } finally {
+    globalThis.herdrState = undefined;
+    globalThis.herdrOverlays = undefined;
+    globalThis.herdrClosed = undefined;
+  }
+});
+
+test("adding a model uses the cx its handler got, not one kept from init", () => {
+  globalThis.herdrState = { props: { role: "menu", mode: "add" } };
+  try {
+    const v = new ClaudeAccounts();
+    v.init({}, menuCx());
+    assert.equal(v.cx, undefined, "init keeps no cx");
+    v.commandInput = { value: () => "grok\n--x", focus() {} };
+    let notified = 0;
+    v.addModel({ notify() { notified += 1; }, spawn() {} });
+    assert.equal(v.error, "The start command must be one line");
+    assert.equal(notified, 1);
+  } finally {
+    globalThis.herdrState = undefined;
+  }
+});
+
+test("under herdr-app check the board and the menu render without running cca or starting loops", () => {
+  globalThis.herdrChecking = true;
+  globalThis.herdrExec = [];
+  try {
+    for (const props of [{ role: "board" }, { role: "menu", overlay: "o1" }]) {
+      globalThis.herdrState = { props, shared: {} };
+      const cx = menuCx();
+      const v = new ClaudeAccounts();
+      v.init({}, cx);
+      v.readAccounts(cx);
+      assert.deepEqual(cx.started, { spawn: 0, every: 0, after: 0 }, props.role);
+      assert.equal(shared(MENU_KEY), null, `${props.role} writes no shared state`);
+      assert.doesNotThrow(() => v.render(cx), props.role);
+    }
+    assert.deepEqual(globalThis.herdrExec, []);
+  } finally {
+    globalThis.herdrChecking = undefined;
+    globalThis.herdrExec = undefined;
+    globalThis.herdrState = undefined;
   }
 });

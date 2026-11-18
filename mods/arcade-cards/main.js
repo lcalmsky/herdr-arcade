@@ -7,7 +7,7 @@
 
 import { View, div, image, svg, PathBuilder, Background } from "gpui-kit";
 import { v_flex, h_flex, h_virtual_list, VirtualListScrollHandle, Popup } from "gpui-base";
-import { exec, run, appHome, settings, readTextFile, writeTextFile, terminals, panes, agents, spaces, focused, nextCommand, props, shared, setShared, openOverlay, closeOverlay } from "herdr";
+import { exec, run, appHome, settings, readTextFile, writeTextFile, terminals, panes, agents, spaces, focused, nextCommand, props, shared, setShared, openOverlay, closeOverlay, checking } from "herdr";
 
 const INK = {
   bg: "#191035", chrome: "#31265a", surface: "#251b47", line: "#483e74", edge: "#483e74", rule: "#483e74", cabEdge: "#6b3fd1",
@@ -739,6 +739,12 @@ async function openPageFiles(page) {
 }
 
 export default class ArcadeCards extends View {
+  // Where pane.go hands the keyboard back: the panel is the layout's bottom row with the terminal
+  // above it; the strip of the "cards" role sits above the terminal.
+  handBack() {
+    return this.role === "panel" ? "up" : "down";
+  }
+
   init(_props, cx) {
     this.role = props()?.role ?? "cards";
     if (this.role === "head") return;
@@ -794,6 +800,8 @@ export default class ArcadeCards extends View {
     this.published = null;
     this.history = { list: [], at: -1 };
     this.navTarget = null;
+    // herdr-app check runs init for real: render the empty view without running scan.sh.
+    if (checking()) return;
     cx.spawn(async (cx) => {
       for (;;) {
         const command = await nextCommand();
@@ -802,7 +810,7 @@ export default class ArcadeCards extends View {
           cx.notify();
         } else if (command === "toggle") {
           // Bound to ctrl-alt-p by the "layout:arcade-cards" section of keys.json (see README).
-          if (this.handle.is_focused()) run("pane.go", { direction: "down" });
+          if (this.handle.is_focused()) run("pane.go", { direction: this.handBack() });
           else this.handle.focus();
           cx.notify();
         } else if (command === "font_in" || command === "font_out" || command === "font_reset") {
@@ -880,7 +888,7 @@ export default class ArcadeCards extends View {
   }
 
   poll(cx) {
-    if (this.scanning) return;
+    if (this.scanning || checking()) return;
     this.scanning = true;
     cx.spawn(async (cx) => {
       let error = null;
@@ -1637,14 +1645,14 @@ export default class ArcadeCards extends View {
     if (key === "p" && control && alt && !command) {
       // ctrl-alt-p while the strip has the keyboard: the keys.json binding alone does not hand it back,
       // so the strip does it itself, like Esc's last step.
-      run("pane.go", { direction: "down" });
+      run("pane.go", { direction: this.handBack() });
     } else if (key === "escape") {
       const chipFilter = shared("arcade-filter");
       if (searching) this.query = "";
       else if (Array.isArray(chipFilter) && chipFilter.length) setShared("arcade-filter", []);
       else if (this.sel !== NONE && selected) this.sel = NONE;
       else {
-        run("pane.go", { direction: "down" });
+        run("pane.go", { direction: this.handBack() });
         handled = false;
       }
     } else if (key === "backspace" && plain) {
@@ -2056,8 +2064,10 @@ export default class ArcadeCards extends View {
     this.sel = item.sessionId;
     cx.notify();
     const links = linksOf(item, { jiraBase: this.jiraBase, slackBase: this.slackBase });
-    // A Claude Code session in a live terminal with no checklist yet can be asked to show one.
-    const showChecklist = Boolean(item.terminal) && item.raw?.t === "s" && !item.hasChecklist;
+    // A Claude Code session in a live terminal with no checklist yet can be asked to show one; the prompt
+    // names a Claude Code skill, so other agents' sessions don't get the row.
+    const claude = !item.raw?.agent || item.raw.agent === "claude";
+    const showChecklist = Boolean(item.terminal) && item.raw?.t === "s" && claude && !item.hasChecklist;
     openOverlay({ mod: "arcade-cards", kind: "popup", ...(at ? { at } : {}), width: LINKS_W, height: linksMenuHeight(links.length, showChecklist),
       props: { role: "links", head: item.jiraKey ?? (item.spot?.slack ? "Slack" : item.spot?.label ?? "Session"),
         topic: item.topic ?? item.title ?? null, links, showChecklist, terminal: item.terminal ?? null,
@@ -2073,7 +2083,7 @@ export default class ArcadeCards extends View {
     const rows = showChecklist ? [{ checklist: true }, ...links] : links;
     const icons = { jira: "mods/arcade-cards/icons/ticket.svg", pr: "mods/arcade-cards/icons/pull.svg",
       slack: "mods/arcade-cards/icons/thread.svg", page: "mods/workspace-chrome/file-text.svg" };
-    const row = (id, icon, label, meta, hot, active, action) => h_flex().id(id).h(30).flex_none().px(8).gap(8).rounded(0)
+    const row = (id, icon, label, meta, hot, active, action, failed = false) => h_flex().id(id).h(30).flex_none().px(8).gap(8).rounded(0)
       .items_center().cursor_pointer()
       .when(active, (el) => el.bg(INK.chipBg))
       .hover((h) => h.bg(INK.chipBg))
@@ -2081,7 +2091,7 @@ export default class ArcadeCards extends View {
       .child(svg(icon).size(14).flex_none().text_color(INK.t2))
       .child(div().flex_1().min_w(0).truncate().text_size(12).font_family(FONT).font_semibold().text_color(INK.t1).child(label))
       .when(Boolean(meta), (el) => el.child(div().flex_none().max_w(110).truncate().text_size(11).font_family(FONT)
-        .font_semibold().text_color(INK.t2).child(meta)))
+        .font_semibold().text_color(failed ? TONE.needs.ink : INK.t2).child(meta)))
       .when(Boolean(hot), (el) => el.child(keycap(String(hot).toUpperCase())));
     const checklistRow = h_flex().id("link-checklist").h(30).flex_none().px(8).gap(8).rounded(0)
       .items_center().cursor_pointer()
@@ -2105,8 +2115,11 @@ export default class ArcadeCards extends View {
       .when(showChecklist && links.length > 0, (el) => el.child(div().h(1).mx(6).my(4).flex_none().bg(INK.rule)))
       .when(links.length === 0, (el) => el.child(h_flex().h(30).px(8).items_center()
         .child(div().text_size(12).font_family(FONT).font_semibold().text_color(INK.t3).child("No links on this card"))))
-      .children(links.map((link, index) => row(`link-${index}`, icons[link.kind], link.label, link.meta, link.hot,
-        index + offset === this.active, (cx) => open(link, cx))))
+      .children(links.map((link, index) => {
+        const failed = Boolean(this.linkError) && this.linkError.url === link.url;
+        return row(`link-${index}`, icons[link.kind], link.label, failed ? this.linkError.text : link.meta, link.hot,
+          index + offset === this.active, (cx) => open(link, cx), failed);
+      }))
       .when(links.length > 0, (el) => el
         .child(div().h(1).mx(6).my(4).flex_none().bg(INK.rule))
         .child(row("link-copy", "mods/arcade-cards/icons/copy.svg", "Copy all links", null, null, false, copy)));
@@ -2149,10 +2162,25 @@ export default class ArcadeCards extends View {
   }
 
   // http(s) goes to the system's URL handler; a local page file (scan.sh vouched it openable) to `open`.
+  // A failed `open` keeps the popup up and says so on the link's row.
   openLink(link, cx) {
-    if (/^https?:\/\//.test(link.url)) cx.open_url(link.url);
-    else exec("open", [link.url]);
-    closeOverlay(props().overlay);
+    if (/^https?:\/\//.test(link.url)) {
+      cx.open_url(link.url);
+      closeOverlay(props().overlay);
+      return;
+    }
+    const overlay = props().overlay;
+    this.linkError = null;
+    cx.spawn(async (cx) => {
+      let result = null;
+      try { result = await exec("open", [link.url]); } catch {}
+      if (!result || result.code !== 0) {
+        this.linkError = { url: link.url, text: "Could not open the page" };
+        cx.notify();
+        return;
+      }
+      closeOverlay(overlay);
+    });
   }
 
   copyLinks(links, cx) {

@@ -45,3 +45,4 @@ export const EditorState = { new: (options = {}) => {
 } };
 export const Editor = { new: element };
 export const TextView = { html: () => element(), markdown: () => element() };
+export const ScrollHandle = { new: () => ({ scroll_to_item() {} }) };

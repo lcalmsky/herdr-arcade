@@ -1,7 +1,8 @@
 // Modified from Herdr's shipped `tabs` mod (0.1.12, Apache License 2.0, see LICENSE in this folder):
 // an unnamed tab shows its agent's session name (or its space's name), and the bar sits flush in the head row.
+// The localStorage guard, the wheel and keeping the active tab in view come from the shipped `tabs` 0.1.16.
 import { View, div, svg, image } from "gpui-kit";
-import { h_flex } from "gpui-base";
+import { h_flex, ScrollHandle } from "gpui-base";
 import { spaces, panes, run, openOverlay, theme, window, shared, setShared, layout } from "herdr";
 
 function find(node, id) {
@@ -21,6 +22,10 @@ const SURFACE = "#251b47";
 const BG = "#191035";
 const FOCUS_WATCH_MS = 100;
 
+// Files and Changes switch the panel-body stack; a layout without it (this one: "panel" is the cards
+// panel) gets no buttons, or they would only show that panel.
+export const panelChoices = (body, saved) => (body ? saved ?? ["files", "changes"] : []);
+
 // A tab-bar key: ←→ move to the neighbouring tab and wrap; ↩ and Space select the tab shown.
 export function tabsKey(key, at, count) {
   if (!(count > 0)) return null;
@@ -36,9 +41,35 @@ export default class Tabs extends View {
     this.at = 0;
     this.keyboard = false;
     this.handle = cx.focus_handle();
-    this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
+    this.scroll = ScrollHandle.new();
+    try { this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}"); } catch { this.panels = {}; }
+    if (!this.panels || typeof this.panels !== "object" || Array.isArray(this.panels)) this.panels = {};
+    this.swipe = { acc: 0, steps: 0, at: 0, last: 0 };
     // A ring comes from is_focused(), and the shell redraws only on notify or reload.
     cx.timer.every(FOCUS_WATCH_MS, (cx) => this.watchFocus(cx));
+  }
+
+  // One tab per wheel notch. A touchpad or smooth-scrolling mouse sends many
+  // small events per gesture: a short swipe or one smoothed notch (about
+  // 25 px) switches one tab, a longer swipe keeps going a tab per 60 px, at
+  // most one every 100 ms so each shows.
+  wheel(e) {
+    if (e.delta_lines) {
+      if (e.delta_lines.y) run(e.delta_lines.y > 0 ? "tab.prev" : "tab.next");
+      return;
+    }
+    const s = this.swipe, now = Date.now();
+    // Phases often arrive only as moves (a macOS touchpad included): a pause
+    // or a turn starts a new gesture.
+    if (e.touch_phase === "started" || now - s.at > 250 || e.delta.y * s.acc < 0) Object.assign(s, { acc: 0, steps: 0 });
+    s.at = now;
+    s.acc += e.delta.y;
+    const need = s.steps ? 60 : 20;
+    if (Math.abs(s.acc) < need || now - s.last < 100) return;
+    s.acc -= Math.sign(s.acc) * need;
+    s.steps++;
+    s.last = now;
+    run(e.delta.y > 0 ? "tab.prev" : "tab.next");
   }
 
   focusKey() {
@@ -55,8 +86,9 @@ export default class Tabs extends View {
 
   // The side panel is remembered per space: switching shows that space's choice
   // (closed if it never had one), and opening or closing it records it.
+  // A layout without the panel-body stack (this one) has no side panel to remember.
   syncPanel(space, panel, body, enabled) {
-    if (!space || !panel) return;
+    if (!space || !panel || !body) return;
     const now = panel.hidden ? null : body?.active ?? null;
     if (space.id !== this.space) {
       const first = this.space === undefined;
@@ -85,6 +117,13 @@ export default class Tabs extends View {
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
+    const active = shown.findIndex(tab => tab.active);
+    const selected = shown[active]?.id;
+    if (selected !== this.selected || active !== this.selectedIndex) {
+      this.selected = selected;
+      this.selectedIndex = active;
+      if (active >= 0) this.scroll.scroll_to_item(active);
+    }
     this.at = Math.min(Math.max(this.at ?? 0, 0), Math.max(0, shown.length - 1));
     this.drawnFocus = this.focusKey();
     const focusedAt = (index) => this.keyboard && index === this.at && Boolean(this.handle?.is_focused?.());
@@ -100,6 +139,8 @@ export default class Tabs extends View {
       const telling = live && !/^[~/]/.test(live) && !live.includes("@") && live !== program?.name;
       const name = !c.named ? (telling ? live : space?.name || c.name) : /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
       return h_flex().id(`tab-${c.id}`).h(28).px(8).gap(6).rounded(0).items_center().flex_none().text_size(12).font_family(BODY)
+        // A rename or status dot on this or an earlier tab can push the active one out.
+        .when(i <= active, el => el.on_size_change((_size, cx) => { this.scroll.scroll_to_item(active); cx.notify(); }))
         .border(2).border_color(c.active ? FOCUS : LINE).bg(c.active ? SURFACE : BG).text_color(c.active ? t.foreground : t.muted)
         .when(focusedAt(i), el => el.border(2).border_color(FOCUS))
         .role("tab").aria_selected(Boolean(c.active))
@@ -120,7 +161,7 @@ export default class Tabs extends View {
     };
     const root = layout(), w = window();
     const panel = find(root, "panel"), body = find(root, "panel-body");
-    const enabled = shared("workspace.panels") ?? ["files", "changes"];
+    const enabled = panelChoices(body, shared("workspace.panels"));
     const notice = shared("arcade-cards.notice");
     // A scan error or a notice comes from the cards strip; its Retry or Undo asks back over the pair of keys.
     const noticePill = () => {
@@ -161,8 +202,10 @@ export default class Tabs extends View {
         cx.notify();
       })
       .on_mouse_up("left", () => { this.pressed = null; })
-      .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
-      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(2).overflow_x_scrollbar().children(shown.map(item)))
+      .on_scroll_wheel(e => this.wheel(e))
+      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(2).overflow_x_scrollbar().track_scroll(this.scroll)
+        .on_size_change((_size, cx) => { if (active >= 0) { this.scroll.scroll_to_item(active); cx.notify(); } })
+        .children(shown.map(item)))
       .when(Boolean(notice?.text), (el) => el.child(noticePill()))
       .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))

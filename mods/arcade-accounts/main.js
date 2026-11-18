@@ -11,7 +11,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { agents, terminals, focused, run, exec, props, appHome, openOverlay, closeOverlay, knownAgents, shared } from "herdr";
+import { agents, terminals, focused, run, exec, props, appHome, openOverlay, closeOverlay, knownAgents, shared, setShared, nextCommand, checking } from "herdr";
 
 const INK = {
   ink: "#191035", card: "#251b47", raised: "#191035", selected: "#31265a", line: "#483e74",
@@ -26,6 +26,8 @@ const FONT = "Galmuri11";
 const DISPLAY = "Galmuri14";
 const CREDIT_H = 18;
 const FOCUS_WATCH_MS = 100;
+// The open accounts menu's overlay id, so ctrl-shift-a (arcade-accounts.menu) closes the menu it opened.
+export const MENU_KEY = "arcade-accounts.menu";
 // Below this the 76 px rail has no room for the shortcut beside CREDIT: it lives in the tooltip.
 export const CREDIT_HINT_W = 110;
 export function creditHintShown(railWidth) {
@@ -337,17 +339,16 @@ export default class ClaudeAccounts extends View {
     this.actionError = null;
     this.keyboard = false;
     if (this.role === "menu" && p.mode === "add") {
-      this.cx = cx;
       this.nameInput = InputState.new({ value: "" });
       this.commandInput = InputState.new({ value: "" });
       this.nameInput.on("change", (_e, cx) => { this.error = null; cx.notify(); });
       this.commandInput.on("change", (_e, cx) => { this.error = null; cx.notify(); });
       // There is no Tab handling on Input, so ↩ in the name moves on to the command while it is empty.
-      this.nameInput.on("submit", () => {
+      this.nameInput.on("submit", (_e, cx) => {
         if (!(this.commandInput.value() ?? "").trim()) { this.commandInput.focus(); return; }
-        this.addModel();
+        this.addModel(cx);
       });
-      this.commandInput.on("submit", () => this.addModel());
+      this.commandInput.on("submit", (_e, cx) => this.addModel(cx));
       this.cancelHandle = cx.focus_handle();
       this.createHandle = cx.focus_handle();
       this.nameInput.focus();
@@ -361,13 +362,30 @@ export default class ClaudeAccounts extends View {
       this.launch = null;
       this.launchEdit = null;
       this.launchError = null;
-      cx.timer.after(50, (cx) => { if (!this.rename && !this.addEdit && !this.launchEdit) this.handle.focus(); });
-      cx.timer.every(FOCUS_WATCH_MS, (cx) => this.watchFocus(cx));
-      cx.spawn(async (cx) => { this.launch = await readLaunch(); cx.notify(); });
     }
     if (!this.agents) {
       const cached = shared("new-menu.agents")?.[""];
       if (Array.isArray(cached)) this.agents = cached;
+    }
+    // herdr-app check runs init for real: render from props and the cached agents without running cca.
+    if (checking()) return;
+    if (this.role === "menu") {
+      this.overlay = p.overlay ?? null;
+      if (this.overlay) setShared(MENU_KEY, { overlay: this.overlay });
+      cx.timer.after(50, (cx) => { if (!this.rename && !this.addEdit && !this.launchEdit) this.handle.focus(); });
+      cx.timer.every(FOCUS_WATCH_MS, (cx) => this.watchFocus(cx));
+      cx.spawn(async (cx) => { this.launch = await readLaunch(); cx.notify(); });
+    }
+    if (this.role === "board") {
+      // A crash can leave the menu's id behind; without this the first ctrl-shift-a would only clear it.
+      if (shared(MENU_KEY) != null) setShared(MENU_KEY, null);
+      cx.spawn(async (cx) => {
+        for (;;) {
+          const command = await nextCommand();
+          if (command === "menu") this.toggleMenu();
+          cx.notify();
+        }
+      });
     }
     // knownAgents checks again at most once a minute; the menu needs the list before it opens.
     if (!Array.isArray(p.agents)) this.loadAgents(cx);
@@ -398,7 +416,8 @@ export default class ClaudeAccounts extends View {
   }
 
   readAccounts(cx, pid = this.focusedPid()) {
-    if (this.readingAccounts) return;
+    // render asks too when the focused pane changes, so the check guard sits here as well as in init.
+    if (this.readingAccounts || checking()) return;
     this.focusKey = pid == null ? "" : String(pid);
     const key = this.focusKey;
     this.readingAccounts = true;
@@ -560,15 +579,15 @@ export default class ClaudeAccounts extends View {
     });
   }
 
-  addModel() {
+  addModel(cx) {
     if (this.addingModel) return;
     const label = (this.nameInput?.value() ?? "").trim();
     const command = (this.commandInput?.value() ?? "").trim();
-    if (/[\t\r\n]/.test(command)) { this.error = "The start command must be one line"; this.cx.notify(); return; }
+    if (/[\t\r\n]/.test(command)) { this.error = "The start command must be one line"; cx.notify(); return; }
     this.addingModel = true;
     this.error = null;
-    this.cx.notify();
-    this.cx.spawn(async (cx) => {
+    cx.notify();
+    cx.spawn(async (cx) => {
       let r = null;
       try { r = await exec("sh", [cca(), "--porcelain-add-model", label, command]); } catch {}
       this.addingModel = false;
@@ -603,6 +622,22 @@ export default class ClaudeAccounts extends View {
       .child(this.avatar(label, 20, 11))
       .child(div().text_size(13).font_family(FONT).font_weight(600).text_color(INK.t1).child(label))
       .child(div().text_size(10).font_family(FONT).text_color(INK.t2).child("▾"));
+  }
+
+  // The menu leaves its id when it goes, however it was closed.
+  async close(_cx) {
+    if (this.overlay && shared(MENU_KEY)?.overlay === this.overlay) setShared(MENU_KEY, null);
+  }
+
+  // ctrl-shift-a: the same menu a CREDIT row click opens, or closes it when it is up.
+  toggleMenu() {
+    const open = shared(MENU_KEY)?.overlay;
+    if (open) {
+      closeOverlay(open);
+      setShared(MENU_KEY, null);
+      return;
+    }
+    this.openMenu();
   }
 
   openMenu() {
@@ -812,14 +847,15 @@ export default class ClaudeAccounts extends View {
     if (!ACCOUNT_NAME.test(name ?? "") || !SESSION_ID.test(session?.id ?? "") || !session?.cwd) return;
     const args = resumeArgs(model, session.id);
     if (!args) return;
-    // pane.split takes no folder, so the shell changes into the session's cwd first.
+    // pane.split takes no folder, so the shell changes into the session's cwd first. The launch line
+    // starts with "unset ...;", which would cut an && chain, so a failed cd stops the shell itself.
     const cwd = `'${session.cwd.replace(/'/g, "'\\''")}'`;
     if (model) {
-      run("pane.split", { direction: "right", argv: ["sh", "-lc", `cd ${cwd} && ${launchFor(model, args)}`] });
+      run("pane.split", { direction: "right", argv: ["sh", "-lc", `cd ${cwd} || exit 1; ${launchFor(model, args)}`] });
       return;
     }
     readLaunch().then((command) => run("pane.split", { direction: "right",
-      argv: ["sh", "-lc", `cd ${cwd} && ${launchFor(name, args, command)}`] }));
+      argv: ["sh", "-lc", `cd ${cwd} || exit 1; ${launchFor(name, args, command)}`] }));
   }
 
   startLaunchEdit(cx) {
@@ -1267,7 +1303,7 @@ export default class ClaudeAccounts extends View {
         .child("runs in your shell, so functions like claude-gpt work · ↩ add · esc cancel"))
       .child(h_flex().justify_end().gap(8)
         .child(button("acct-cancel", "Cancel", false, this.cancelHandle, () => closeOverlay(props().overlay)))
-        .child(button("acct-create", this.addingModel ? "Adding…" : "Add", true, this.createHandle, () => this.addModel())));
+        .child(button("acct-create", this.addingModel ? "Adding…" : "Add", true, this.createHandle, (cx) => this.addModel(cx))));
   }
 
   render(cx) {
